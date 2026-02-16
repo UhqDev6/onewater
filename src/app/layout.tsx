@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
-import { Inter } from 'next/font/google';
+import { Roboto } from 'next/font/google';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import "./globals.css";
 
-const inter = Inter({ subsets: ['latin'] });
+const roboto = Roboto({ 
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700', '900'],
+  variable: '--font-roboto',
+});
 
 export const metadata: Metadata = {
   title: "OneWater - Australia Water Quality Monitoring Platform",
@@ -19,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={roboto.className}>
         <div className="flex min-h-screen flex-col">
           <Header />
           <main className="flex-1">{children}</main>
