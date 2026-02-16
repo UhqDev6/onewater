@@ -13,7 +13,7 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: "OneWater - Australia Water Quality Monitoring Platform",
   description: "Real-time water quality monitoring and analysis for Australian beaches. Access data from NSW Beachwatch and Victoria EPA.",
-  keywords: ['water quality', 'beach monitoring', 'Australia', 'NSW', 'Victoria', 'environmental data'],
+  keywords: ['water quality', 'beach monitoring', 'Australia', 'NSW', 'Victoria', 'environmental data', 'enterococci levels', 'recreational water', 'public health', 'data visualization', 'OneWater'],
 };
 
 export default function RootLayout({
