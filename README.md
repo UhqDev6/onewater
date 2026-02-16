@@ -1,34 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OneWater - Water Quality Monitoring Platform
 
-## Getting Started
+A production-ready, scalable Next.js application for monitoring and displaying water quality data across Australia. Built with Next.js 14 App Router, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## 🌊 Features
 
+- **Real-time Monitoring**: Access up-to-date water quality data from government sources
+- **Interactive Dashboard**: Filter and visualize data across multiple locations
+- **Scientific Data**: Based on enterococci levels and NHMRC guidelines
+- **Multi-State Coverage**: NSW and Victoria (with more states planned)
+- **API Integration**: Normalized data layer for multiple data sources
+- **Responsive Design**: Mobile-first design with Tailwind CSS
+- **Type Safety**: Full TypeScript implementation with strict mode
+- **Clean Architecture**: Scalable folder structure with separation of concerns
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Git
+
+### Installation
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run the development server:
+```bash
+npm run dev
+```
 
-## Learn More
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-To learn more about Next.js, take a look at the following resources:
+## 📊 Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├── app/                        # Next.js App Router
+│   ├── page.tsx               # Landing page
+│   ├── dashboard/             # Dashboard page
+│   ├── about/                 # Static pages
+│   ├── methodology/
+│   ├── data-sources/
+│   ├── api/beach-data/        # API endpoint
+│   ├── layout.tsx             # Root layout
+│   └── globals.css
+├── components/
+│   ├── landing/               # Landing components
+│   ├── dashboard/             # Dashboard components
+│   ├── layout/                # Header, Footer
+│   └── ui/                    # Reusable components
+├── services/                  # API integration
+│   ├── nswBeachwatchService.ts
+│   └── victoriaEPAService.ts
+└── lib/
+    ├── types/                 # TypeScript types
+    └── utils/                 # Helper functions
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📚 Key Technologies
 
-## Deploy on Vercel
+- **Next.js 14+**: App Router with React Server Components
+- **TypeScript**: Strict mode
+- **Tailwind CSS**: Utility-first styling
+- **API Routes**: Built-in backend
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🔌 API Usage
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**GET /api/beach-data**
+
+Query parameters:
+- `state`: Filter by state (NSW, VIC)
+- `quality`: Filter by quality rating
+- `limit`: Number of results
+
+## 📝 Architecture Highlights
+
+- **Clean Architecture**: Service layer, type definitions, utility functions
+- **Server/Client Separation**: RSC by default, client components where needed
+- **Data Normalization**: Unified interface for multiple data sources
+- **Type Safety**: Strict TypeScript throughout
+
+Built with ❤️ for Australian communities
