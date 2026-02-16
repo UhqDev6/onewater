@@ -1,11 +1,17 @@
 import Link from 'next/link';
+import ParticleNetwork from './ParticleNetwork';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
   
   return (
-    <footer className="bg-gray-900 text-gray-300">
-      <div className="container mx-auto px-4">
+    <footer className="bg-gray-900 text-gray-300 relative overflow-hidden">
+      {/* Particle Network Background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-slate-900 to-gray-900">
+        <ParticleNetwork />
+      </div>
+      
+      <div className="container mx-auto px-4 relative z-10">
         {/* Main Footer Content */}
         <div className="py-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-12">
           {/* Brand & Description - Takes more space */}
