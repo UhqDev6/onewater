@@ -24,8 +24,20 @@ export default function Header() {
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
             <Link href="/" className="flex items-center space-x-2 group">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                <span className="text-white font-bold text-lg">OW</span>
+              <div className="relative h-9 w-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-sm group-hover:shadow-md transition-all overflow-hidden">
+                {/* Glowing water shimmer effect - always visible */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                     style={{
+                       animation: 'shimmer 3s ease-in-out infinite'
+                     }}>
+                </div>
+                
+                {/* Water droplets effect - always visible */}
+                <div className="absolute -top-0.5 left-1/4 w-2 h-2 bg-blue-300 rounded-full" style={{animation: 'waterBounce 2s ease-in-out infinite', animationDelay: '0ms'}}></div>
+                <div className="absolute -top-0.5 right-1/4 w-1.5 h-1.5 bg-blue-200 rounded-full" style={{animation: 'waterBounce 2.2s ease-in-out infinite', animationDelay: '400ms'}}></div>
+                <div className="absolute -bottom-0.5 left-1/3 w-1.5 h-1.5 bg-blue-300 rounded-full" style={{animation: 'waterBounce 1.8s ease-in-out infinite', animationDelay: '800ms'}}></div>
+                
+                <span className="relative text-white font-bold text-lg z-10">OW</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-lg font-bold text-gray-900 leading-none">OneWater</span>
