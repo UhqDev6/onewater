@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { NormalizedWaterQualityData, WaterQualityFilters } from '@/lib/types';
 import SummaryStats from '@/components/dashboard/SummaryStats';
@@ -26,6 +26,14 @@ export default function DashboardPage() {
   const [beachData, setBeachData] = useState<NormalizedWaterQualityData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Infinite scroll states
+  const [displayedItems, setDisplayedItems] = useState(20);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Create a stable filter key for resetting
+  const filterKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   // Fetch beach data on mount
   useEffect(() => {
@@ -47,6 +55,52 @@ export default function DashboardPage() {
 
   // Filter data based on current filters
   const filteredData = filterWaterQualityData(beachData, filters);
+  
+  // Slice data for infinite scroll (only in grid view)
+  const visibleData = viewMode === 'grid' 
+    ? filteredData.slice(0, displayedItems)
+    : filteredData;
+  
+  const hasMore = filteredData.length > displayedItems;
+
+  // Reset displayed items when filters change
+  useEffect(() => {
+    if (displayedItems > 20) {
+      setDisplayedItems(20);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (viewMode !== 'grid' || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore) {
+          setIsLoadingMore(true);
+          
+          // Simulate loading delay for smooth UX
+          setTimeout(() => {
+            setDisplayedItems((prev) => Math.min(prev + 20, filteredData.length));
+            setIsLoadingMore(false);
+          }, 500);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [viewMode, hasMore, isLoadingMore, filteredData.length]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -133,29 +187,81 @@ export default function DashboardPage() {
             {/* Content Area */}
             <div className="lg:col-span-3">
               {viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {filteredData.length > 0 ? (
-                    filteredData.map((data) => (
-                      <LocationCard
-                        key={data.location.id}
-                        data={data}
-                        onSelect={() => setSelectedLocation(data.location.id)}
-                      />
-                    ))
-                  ) : (
-                    <div className="col-span-full text-center py-12">
-                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-gray-500 font-medium mb-1">
-                        No locations match your filters
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        Try adjusting or clearing your filter selections
-                      </p>
+                <>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {visibleData.length > 0 ? (
+                      visibleData.map((data) => (
+                        <LocationCard
+                          key={data.location.id}
+                          data={data}
+                          onSelect={() => setSelectedLocation(data.location.id)}
+                        />
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center py-12">
+                        <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-gray-500 font-medium mb-1">
+                          No locations match your filters
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Try adjusting or clearing your filter selections
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Loading More Indicator */}
+                  {isLoadingMore && (
+                    <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="bg-white rounded-lg border border-gray-200 p-6">
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                            <div className="h-3 bg-gray-200 rounded w-1/2 mb-3"></div>
+                            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+                            <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
+                            <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-                </div>
+
+                  {/* Intersection Observer Trigger */}
+                  {hasMore && <div ref={loadMoreRef} className="h-10" />}
+
+                  {/* Progress Counter */}
+                  {filteredData.length > 0 && (
+                    <div className="mt-8 text-center">
+                      <p className="text-sm text-gray-600 mb-3">
+                        Showing <span className="font-semibold text-gray-900">{Math.min(displayedItems, filteredData.length)}</span> of{' '}
+                        <span className="font-semibold text-gray-900">{filteredData.length}</span> locations
+                      </p>
+                      {/* Progress Bar */}
+                      <div className="max-w-md mx-auto">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${(Math.min(displayedItems, filteredData.length) / filteredData.length) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {/* Load All Button (Optional) */}
+                      {hasMore && !isLoadingMore && (
+                        <button
+                          onClick={() => setDisplayedItems(filteredData.length)}
+                          className="mt-4 px-6 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          Load All Remaining ({filteredData.length - displayedItems})
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
               ) : (
                 <MapView
                   locations={filteredData}

@@ -63,34 +63,78 @@ export default function Features() {
   ];
 
   return (
-    <section className="py-24 sm:py-32 bg-gradient-to-b from-white to-gray-50">
-      <div className="container mx-auto px-4">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-            Comprehensive Water Quality Platform
+    <section className="py-24 sm:py-32 bg-gradient-to-b from-gray-50 via-white to-gray-50 relative">
+      {/* Scientific Grid Background Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:40px_40px] opacity-20" />
+      
+      <div className="container mx-auto px-4 relative">
+        {/* Header - Research Paper Style */}
+        <div className="mx-auto max-w-2xl text-center mb-4">
+          <div className="inline-block mb-4">
+            <span className="text-xs font-mono text-gray-500 tracking-widest uppercase border border-gray-300 px-3 py-1 rounded-full">
+              Platform Capabilities
+            </span>
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl mb-4">
+            Scientific Water Quality Platform
           </h2>
-          <p className="mt-4 text-lg text-gray-600">
-            Everything you need to monitor and understand water quality in Australia
+          <p className="text-base text-gray-600 font-light leading-relaxed">
+            Advanced analytical tools for environmental monitoring and public health protection
           </p>
         </div>
 
         <div className="mx-auto mt-16 max-w-7xl">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
+            {features.map((feature, index) => (
               <div
                 key={feature.name}
-                className="group relative bg-white p-8 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border border-gray-100 rounded-xl"
+                className="group relative bg-white/80 backdrop-blur-sm p-8 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl border-2 border-gray-200 rounded-2xl hover:border-gray-300 animate-fade-in"
+                style={{
+                  animationDelay: `${index * 100}ms`,
+                }}
               >
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-blue-50 text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                {/* Feature Number - Lab Style */}
+                <div className="absolute top-4 right-4">
+                  <span className="text-[10px] font-mono text-gray-400 tracking-widest">
+                    F{String(index + 1).padStart(2, '0')}
+                  </span>
+                </div>
+
+                {/* Icon - Laboratory Equipment Style */}
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 mb-5 group-hover:from-blue-600 group-hover:to-blue-700 group-hover:text-white transition-all duration-300 shadow-md border-2 border-blue-100 group-hover:border-blue-500">
                   {feature.icon}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.name}</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{feature.description}</p>
+
+                {/* Feature Title - Research Format */}
+                <div className="mb-4 pb-3 border-b border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900">{feature.name}</h3>
+                </div>
+
+                {/* Description - Technical Documentation Style */}
+                <p className="text-sm text-gray-600 leading-relaxed font-light">
+                  {feature.description}
+                </p>
+
+                {/* Hover Glow Effect */}
+                <div className="absolute inset-0 rounded-2xl border-2 border-blue-400/0 group-hover:border-blue-400/30 transition-colors duration-300 pointer-events-none"></div>
               </div>
             ))}
           </div>
         </div>
+
+        {/* Bottom Technical Note */}
+        {/* <div className="mt-16 text-center">
+          <p className="text-xs font-mono text-gray-500 tracking-wide">
+            Built with{' '}
+            <span className="text-blue-600 font-semibold">Next.js 14</span>
+            {' • '}
+            <span className="text-blue-600 font-semibold">React Leaflet</span>
+            {' • '}
+            <span className="text-blue-600 font-semibold">TypeScript</span>
+          </p>
+        </div> */}
       </div>
+
     </section>
   );
 }

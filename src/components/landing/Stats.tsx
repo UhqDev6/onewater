@@ -40,34 +40,78 @@ export default function Stats() {
   ];
 
   return (
-    <section className="py-24 sm:py-32 bg-white">
-      <div className="container mx-auto px-4">
+    <section className="py-24 sm:py-32 bg-gradient-to-b from-white via-gray-50 to-white relative">
+      {/* Scientific Grid Background Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:40px_40px] opacity-20" />
+      
+      <div className="container mx-auto px-4 relative">
+        {/* Header - Research Paper Style */}
         <div className="mx-auto max-w-2xl text-center mb-16">
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          <div className="inline-block mb-4">
+            <span className="text-xs font-mono text-gray-500 tracking-widest uppercase border border-gray-300 px-3 py-1 rounded-full">
+              Key Metrics
+            </span>
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl mb-4">
             Trusted by Communities
           </h2>
-          <p className="mt-4 text-lg text-gray-600">
+          <p className="text-base text-gray-600 font-light leading-relaxed">
             Serving thousands of users with reliable environmental data
           </p>
         </div>
 
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {stats.map((stat) => (
+            {stats.map((stat, index) => (
               <div 
                 key={stat.label} 
-                className="group relative bg-gradient-to-br from-blue-50 to-white border border-blue-100 rounded-xl p-8 hover:shadow-lg hover:border-blue-200 transition-all duration-300"
+                className="group relative bg-white/80 backdrop-blur-sm border-2 border-gray-200 rounded-2xl p-8 hover:shadow-xl hover:border-gray-300 hover:scale-[1.05] transition-all duration-300 animate-fade-in"
+                style={{
+                  animationDelay: `${index * 100}ms`,
+                }}
               >
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                {/* Stat Number - Top Right */}
+                <div className="absolute top-4 right-4">
+                  <span className="text-[10px] font-mono text-gray-400 tracking-widest">
+                    S{String(index + 1).padStart(2, '0')}
+                  </span>
+                </div>
+
+                {/* Icon - Laboratory Equipment Style */}
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 mb-5 group-hover:from-blue-600 group-hover:to-blue-700 group-hover:text-white transition-all duration-300 shadow-md border-2 border-blue-100 group-hover:border-blue-500">
                   {stat.icon}
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-2">{stat.value}</div>
-                <div className="text-sm text-gray-600 font-medium">{stat.label}</div>
+
+                {/* Value - Big Number Display */}
+                <div className="text-4xl font-bold text-gray-900 mb-3 tabular-nums tracking-tight">
+                  {stat.value}
+                </div>
+
+                {/* Label - Technical Format */}
+                <div className="text-xs font-mono text-gray-600 uppercase tracking-wide border-t border-gray-200 pt-3">
+                  {stat.label}
+                </div>
+
+                {/* Hover Glow Effect */}
+                <div className="absolute inset-0 rounded-2xl border-2 border-blue-400/0 group-hover:border-blue-400/30 transition-colors duration-300 pointer-events-none"></div>
               </div>
             ))}
           </div>
         </div>
+
+        {/* Bottom Data Attribution */}
+        <div className="mt-16 text-center">
+          <p className="text-xs font-mono text-gray-500 tracking-wide">
+            Data aggregated from{' '}
+            <span className="text-blue-600 font-semibold">NSW Beachwatch</span>
+            {' • '}
+            <span className="text-blue-600 font-semibold">Victoria EPA</span>
+            {' • Updated '}
+            <span className="text-gray-700 font-semibold">Hourly</span>
+          </p>
+        </div>
       </div>
+
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import ParticleNetwork from './ParticleNetwork';
 
 export default function Footer() {
@@ -16,12 +17,27 @@ export default function Footer() {
         <div className="py-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-12">
           {/* Brand & Description - Takes more space */}
           <div className="lg:col-span-4 space-y-4">
+            {/* New: Using custom logo image */}
+            <div className="flex items-center space-x-3">
+              <Image 
+                src="/images/onewater-white.png" 
+                alt="OneWater Logo" 
+                width={120}
+                height={40}
+                className="h-10 w-auto"
+                priority
+              />
+            </div>
+            
+            {/* Old: Text-based logo (kept as backup)
             <div className="flex items-center space-x-2">
               <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center">
                 <span className="text-white font-bold text-xl">OW</span>
               </div>
               <span className="text-xl font-bold text-white">OneWater</span>
             </div>
+            */}
+            
             <p className="text-sm text-gray-400 leading-relaxed max-w-sm">
               Australia&apos;s comprehensive water quality monitoring platform. Providing real-time, 
               science-based environmental data to empower communities and protect public health.
