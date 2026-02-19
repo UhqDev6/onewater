@@ -41,6 +41,10 @@ function normalizeBeachwatchData(feature: BeachwatchFeature): NormalizedWaterQua
     unit: 'cfu/100ml',
     qualityRating: mapRatingToQuality(properties.latestResultRating),
     source: 'nsw_beachwatch',
+    // NSW Beachwatch specific fields
+    pollutionForecast: properties.pollutionForecast,
+    pollutionForecastTimeStamp: properties.pollutionForecastTimeStamp,
+    latestResultObservationDate: properties.latestResultObservationDate,
   };
 
   return {

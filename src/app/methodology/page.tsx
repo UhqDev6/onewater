@@ -36,7 +36,7 @@ export default function MethodologyPage() {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-3">Water Quality Assessment</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Our platform uses <span className="font-semibold text-gray-900">enterococci bacteria levels</span> as the primary indicator of recreational water quality. Enterococci are internationally recognized as the most reliable indicator of fecal contamination in marine and freshwater environments.
+                  Our platform uses <span className="font-semibold text-gray-900">enterococci bacteria levels</span> as the primary indicator of recreational water quality. Enterococci are internationally recognized as the most reliable indicator of faecal contamination in marine and freshwater environments.
                 </p>
               </div>
             </div>

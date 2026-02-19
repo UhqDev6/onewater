@@ -126,7 +126,7 @@ export default function AboutPage() {
             <ul className="space-y-3">
               {[
                 'NSW Beachwatch - Dept of Planning',
-                'Victoria EPA - Environment Authority'
+                'EPA Victoria - Environment Authority'
               ].map((item, i) => (
                 <li key={i} className="flex items-start space-x-3">
                   <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">

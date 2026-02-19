@@ -105,7 +105,7 @@ export default function Stats() {
             Data aggregated from{' '}
             <span className="text-blue-600 font-semibold">NSW Beachwatch</span>
             {' • '}
-            <span className="text-blue-600 font-semibold">Victoria EPA</span>
+            <span className="text-blue-600 font-semibold">EPA Victoria</span>
             {' • Updated '}
             <span className="text-gray-700 font-semibold">Hourly</span>
           </p>

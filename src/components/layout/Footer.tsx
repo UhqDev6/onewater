@@ -105,13 +105,13 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="https://www.health.nsw.gov.au/environment/beaches/Pages/default.aspx" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-white transition-colors">
+                <a href="https://www.epa.vic.gov.au/check-air-and-water-quality" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-white transition-colors">
                   NSW Beachwatch
                 </a>
               </li>
               <li>
                 <a href="https://www.epa.vic.gov.au/" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-400 hover:text-white transition-colors">
-                  Victoria EPA
+                  EPA Victoria
                 </a>
               </li>
               <li>
@@ -128,7 +128,7 @@ export default function Footer() {
             <div className="space-y-4">
               <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Water quality data sourced from <span className="text-white font-medium">NSW Health Beachwatch</span> and <span className="text-white font-medium">Victoria EPA</span>. 
+                  Water quality data sourced from <span className="text-white font-medium">NSW Health Beachwatch</span> and <span className="text-white font-medium">EPA Victoria</span>. 
                   Quality ratings based on enterococci levels per 100ml, assessed against NHMRC recreational water quality guidelines.
                 </p>
               </div>
