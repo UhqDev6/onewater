@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+// import { useState } from 'react';
 import { WaterQualityFilters, WaterQualityRating } from '@/lib/types';
 
 interface FiltersPanelProps {
@@ -9,7 +9,7 @@ interface FiltersPanelProps {
 }
 
 export default function FiltersPanel({ filters, onFiltersChange }: FiltersPanelProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // const [isExpanded, setIsExpanded] = useState(false);
 
   const handleStateToggle = (state: string) => {
     const currentStates = filters.states || [];
@@ -95,7 +95,7 @@ export default function FiltersPanel({ filters, onFiltersChange }: FiltersPanelP
       </div>
 
       {/* Expandable Advanced Filters */}
-      <button
+      {/* <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="text-sm text-gray-600 hover:text-gray-900 font-medium"
       >
@@ -106,7 +106,7 @@ export default function FiltersPanel({ filters, onFiltersChange }: FiltersPanelP
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-500">Additional filters coming soon...</p>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

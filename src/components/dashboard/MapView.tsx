@@ -3,6 +3,7 @@
 /**
  * Interactive map view using React Leaflet
  * Displays beach locations with water quality status markers
+ * Features: Search & Fly To, Color-coded markers, Interactive popups
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -10,12 +11,15 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { NormalizedWaterQualityData, WaterQualityRating } from '@/lib/types';
-import { getQualityColor, getQualityLabel, formatDate } from '@/lib/utils/dataHelpers';
+
+import MapSearchBar from './MapSearchBar';
+import EnhancedPopup from './EnhancedPopup';
 
 interface MapViewProps {
   locations: NormalizedWaterQualityData[];
   selectedLocation?: string;
   onLocationSelect?: (locationId: string) => void;
+  onViewDetails?: (locationId: string) => void;
 }
 
 // Custom marker icons based on water quality
@@ -87,8 +91,45 @@ function MapController({ locations }: { locations: NormalizedWaterQualityData[] 
   return null;
 }
 
-export default function MapView({ locations, onLocationSelect }: MapViewProps) {
+// Component to handle flying to a specific location with smooth animation
+function FlyToLocation({ 
+  location, 
+  onComplete 
+}: { 
+  location: NormalizedWaterQualityData | null;
+  onComplete?: () => void;
+}) {
+  const map = useMap();
+  const previousLocationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (location && location.location.id !== previousLocationRef.current) {
+      previousLocationRef.current = location.location.id;
+      
+      // Fly to location with smooth animation
+      map.flyTo(
+        [location.location.latitude, location.location.longitude],
+        15, // Zoom level for close-up view
+        {
+          duration: 1.5, // Animation duration in seconds
+          easeLinearity: 0.25,
+        }
+      );
+
+      // Open popup after flying
+      setTimeout(() => {
+        onComplete?.();
+      }, 1600);
+    }
+  }, [location, map, onComplete]);
+
+  return null;
+}
+
+export default function MapView({ locations, onLocationSelect, onViewDetails }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
+  const [flyToLocation, setFlyToLocation] = useState<NormalizedWaterQualityData | null>(null);
+  const markersRef = useRef<Map<string, L.Marker>>(new Map());
 
   // Prevent SSR issues with Leaflet - mount detection for client-side only rendering
   useEffect(() => {
@@ -97,6 +138,22 @@ export default function MapView({ locations, onLocationSelect }: MapViewProps) {
       setIsMounted(true);
     }
   }, [isMounted]);
+
+  // Handle search selection - fly to location
+  const handleSearchSelect = (location: NormalizedWaterQualityData) => {
+    setFlyToLocation(location);
+  };
+
+  // After fly animation completes, open the popup
+  const handleFlyComplete = () => {
+    if (flyToLocation) {
+      const marker = markersRef.current.get(flyToLocation.location.id);
+      if (marker) {
+        marker.openPopup();
+      }
+      onLocationSelect?.(flyToLocation.location.id);
+    }
+  };
 
   if (!isMounted) {
     return (
@@ -111,65 +168,59 @@ export default function MapView({ locations, onLocationSelect }: MapViewProps) {
   const defaultZoom = 10;
 
   return (
-    <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm" style={{ isolation: 'isolate' }}>
-      <MapContainer
-        center={defaultCenter}
-        zoom={defaultZoom}
-        style={{ height: '600px', width: '100%', zIndex: 0 }}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    <div className="space-y-4">
+      {/* Search Bar - Fly To Location */}
+      <div className="relative z-10">
+        <MapSearchBar 
+          locations={locations}
+          onLocationSelect={handleSearchSelect}
+          placeholder="Search & fly to location..."
         />
-        
-        <MapController locations={locations} />
+      </div>
 
-        {locations.map((data) => (
-          <Marker
-            key={data.location.id}
-            position={[data.location.latitude, data.location.longitude]}
-            icon={createMarkerIcon(data.latestReading.qualityRating)}
-            eventHandlers={{
-              click: () => onLocationSelect?.(data.location.id),
-            }}
-          >
-            <Popup>
-              <div className="p-3 min-w-55">
-                <h3 className="font-semibold text-gray-900 mb-1 text-base">{data.location.name}</h3>
-                <p className="text-xs text-gray-600 mb-3">
-                  {data.location.region}, {data.location.state}
-                </p>
-                
-                <div 
-                  className="inline-block px-3 py-1 rounded-full text-xs font-medium text-white mb-3"
-                  style={{ backgroundColor: getQualityColor(data.latestReading.qualityRating) }}
-                >
-                  {getQualityLabel(data.latestReading.qualityRating)}
-                </div>
+      {/* Map Container */}
+      <div className="rounded-lg border border-gray-200 overflow-hidden shadow-sm relative" style={{ isolation: 'isolate' }}>
+        <MapContainer
+          center={defaultCenter}
+          zoom={defaultZoom}
+          style={{ height: '600px', width: '100%', zIndex: 0 }}
+          scrollWheelZoom={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          
+          <MapController locations={locations} />
+          <FlyToLocation location={flyToLocation} onComplete={handleFlyComplete} />
 
-                <div className="space-y-2 pt-2 border-t border-gray-100">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Latest Update</span>
-                    <span className="text-xs font-medium text-gray-900">
-                      {formatDate(data.latestReading.sampleDate)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Data Source</span>
-                    <span className="text-xs font-medium text-gray-900">
-                      {data.latestReading.source === 'nsw_beachwatch' ? 'NSW Beachwatch' : data.latestReading.source}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+          {locations.map((data) => (
+            <Marker
+              key={data.location.id}
+              position={[data.location.latitude, data.location.longitude]}
+              icon={createMarkerIcon(data.latestReading.qualityRating)}
+              ref={(ref) => {
+                if (ref) {
+                  markersRef.current.set(data.location.id, ref);
+                }
+              }}
+              eventHandlers={{
+                click: () => onLocationSelect?.(data.location.id),
+              }}
+            >
+              <Popup maxWidth={280} minWidth={250}>
+                <EnhancedPopup 
+                  data={data} 
+                  onViewDetails={onViewDetails}
+                />
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
 
+      {/* No locations overlay */}
       {locations.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/90 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/90 pointer-events-none rounded-lg">
           <div className="text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -179,6 +230,7 @@ export default function MapView({ locations, onLocationSelect }: MapViewProps) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

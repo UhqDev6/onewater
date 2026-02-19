@@ -90,7 +90,7 @@ export default function DataSourcesPage() {
             </div>
           </section>
 
-          {/* Victoria EPA */}
+          {/* EPA Victoria */}
           <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 md:p-10">
             <div className="flex items-start justify-between mb-6">
               <div className="flex items-start space-x-4">
@@ -100,7 +100,7 @@ export default function DataSourcesPage() {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Victoria EPA</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">EPA Victoria</h2>
                   <p className="text-sm text-gray-600">Environment Protection Authority Victoria</p>
                 </div>
               </div>
@@ -113,7 +113,7 @@ export default function DataSourcesPage() {
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">About</h3>
                 <p className="text-gray-700 text-sm leading-relaxed">
-                  Victoria EPA monitors beach water quality across Port Phillip Bay, Western Port, and coastal beaches. Provides comprehensive environmental data for recreational water safety.
+                  EPA Victoria monitors beach water quality across Port Phillip Bay, Western Port, and coastal beaches. Provides comprehensive environmental data for recreational water safety.
                 </p>
               </div>
 

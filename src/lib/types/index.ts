@@ -33,6 +33,10 @@ export interface EnterococciRecord {
   notes?: string;
   isEstimated?: boolean;
   source: DataSource;
+  // NSW Beachwatch specific fields
+  pollutionForecast?: string; // e.g., "Unlikely", "Possible", "Likely"
+  pollutionForecastTimeStamp?: string; // ISO 8601 format
+  latestResultObservationDate?: string; // ISO 8601 format
 }
 
 export type WaterQualityRating = 'excellent' | 'good' | 'fair' | 'poor' | 'bad' | 'very_poor' | 'unknown';

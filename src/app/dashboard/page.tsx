@@ -6,6 +6,7 @@ import { NormalizedWaterQualityData, WaterQualityFilters } from '@/lib/types';
 import SummaryStats from '@/components/dashboard/SummaryStats';
 import FiltersPanel from '@/components/dashboard/FiltersPanel';
 import LocationCard from '@/components/dashboard/LocationCard';
+import GridFilterBar, { GridFilterState } from '@/components/dashboard/GridFilterBar';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
 import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
 
@@ -27,6 +28,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Grid view filtering states
+  const [gridFilters, setGridFilters] = useState<GridFilterState>({
+    search: '',
+    letter: null,
+    sort: 'asc',
+    region: null,
+  });
+  
   // Infinite scroll states
   const [displayedItems, setDisplayedItems] = useState(20);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -34,8 +43,9 @@ export default function DashboardPage() {
 
   // Create a stable filter key for resetting
   const filterKey = useMemo(() => JSON.stringify(filters), [filters]);
+  const gridFilterKey = useMemo(() => JSON.stringify(gridFilters), [gridFilters]);
 
-  // Fetch beach data on mount
+  // Fetch all beach data on mount (for map view and initial stats)
   useEffect(() => {
     async function loadData() {
       setLoading(true);
@@ -53,15 +63,54 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  // Filter data based on current filters
+  // Filter data based on FiltersPanel filters (state & quality)
   const filteredData = filterWaterQualityData(beachData, filters);
-  
-  // Slice data for infinite scroll (only in grid view)
+
+  // Apply GridFilterBar filters (search, letter, sort) on top of FiltersPanel filters
+  const gridFilteredData = useMemo(() => {
+    let result = [...filteredData];
+
+    // Apply search filter
+    if (gridFilters.search) {
+      const searchTerm = gridFilters.search.toLowerCase();
+      result = result.filter(d => 
+        d.location.name.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Apply letter filter
+    if (gridFilters.letter) {
+      result = result.filter(d => 
+        d.location.name.toUpperCase().startsWith(gridFilters.letter!)
+      );
+    }
+
+    // Apply sort
+    result.sort((a, b) => {
+      const nameA = a.location.name.toLowerCase();
+      const nameB = b.location.name.toLowerCase();
+      return gridFilters.sort === 'asc' 
+        ? nameA.localeCompare(nameB)
+        : nameB.localeCompare(nameA);
+    });
+
+    return result;
+  }, [filteredData, gridFilters]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setDisplayedItems(20);
+  }, [filterKey, gridFilterKey]);
+
+  // For grid view, use combined filtered data with infinite scroll
+  // For map view, use FiltersPanel filtered data only
   const visibleData = viewMode === 'grid' 
-    ? filteredData.slice(0, displayedItems)
+    ? gridFilteredData.slice(0, displayedItems)
     : filteredData;
   
-  const hasMore = filteredData.length > displayedItems;
+  const hasMore = viewMode === 'grid' 
+    ? gridFilteredData.length > displayedItems
+    : filteredData.length > displayedItems;
 
   // Reset displayed items when filters change
   useEffect(() => {
@@ -77,12 +126,12 @@ export default function DashboardPage() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoadingMore) {
+        if (entries[0].isIntersecting && !isLoadingMore && !loading) {
           setIsLoadingMore(true);
           
           // Simulate loading delay for smooth UX
           setTimeout(() => {
-            setDisplayedItems((prev) => Math.min(prev + 20, filteredData.length));
+            setDisplayedItems((prev) => Math.min(prev + 20, gridFilteredData.length));
             setIsLoadingMore(false);
           }, 500);
         }
@@ -100,7 +149,7 @@ export default function DashboardPage() {
         observer.unobserve(currentRef);
       }
     };
-  }, [viewMode, hasMore, isLoadingMore, filteredData.length]);
+  }, [viewMode, hasMore, isLoadingMore, loading, gridFilteredData.length]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -151,7 +200,7 @@ export default function DashboardPage() {
           {/* View Toggle */}
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900">
-              Locations ({filteredData.length})
+              Locations ({viewMode === 'grid' ? gridFilteredData.length : filteredData.length})
             </h2>
             <div className="flex space-x-2">
               <button
@@ -179,7 +228,7 @@ export default function DashboardPage() {
 
           {/* Main Content Area */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-            {/* Filters Sidebar */}
+            {/* Filters Sidebar - Show for both views */}
             <div className="lg:col-span-1">
               <FiltersPanel filters={filters} onFiltersChange={setFilters} />
             </div>
@@ -188,6 +237,18 @@ export default function DashboardPage() {
             <div className="lg:col-span-3">
               {viewMode === 'grid' ? (
                 <>
+                  {/* Grid Filter Bar - Additional filters for Grid View */}
+                  <div className="mb-6">
+                    <GridFilterBar
+                      filters={gridFilters}
+                      onFiltersChange={setGridFilters}
+                      resultCount={gridFilteredData.length}
+                      totalCount={filteredData.length}
+                      loading={loading}
+                    />
+                  </div>
+
+                  {/* Grid Content */}
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {visibleData.length > 0 ? (
                       visibleData.map((data) => (
@@ -203,19 +264,19 @@ export default function DashboardPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <p className="text-gray-500 font-medium mb-1">
-                          No locations match your filters
+                          No locations match your search
                         </p>
                         <p className="text-sm text-gray-400">
-                          Try adjusting or clearing your filter selections
+                          Try a different search term or clear filters
                         </p>
                       </div>
                     )}
                   </div>
 
                   {/* Loading More Indicator */}
-                  {isLoadingMore && (
+                  {isLoadingMore && !loading && (
                     <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {[...Array(6)].map((_, i) => (
+                      {[...Array(3)].map((_, i) => (
                         <div key={i} className="animate-pulse">
                           <div className="bg-white rounded-lg border border-gray-200 p-6">
                             <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
@@ -230,22 +291,22 @@ export default function DashboardPage() {
                   )}
 
                   {/* Intersection Observer Trigger */}
-                  {hasMore && <div ref={loadMoreRef} className="h-10" />}
+                  {hasMore && !loading && <div ref={loadMoreRef} className="h-10" />}
 
                   {/* Progress Counter */}
-                  {filteredData.length > 0 && (
+                  {gridFilteredData.length > 0 && !loading && (
                     <div className="mt-8 text-center">
                       <p className="text-sm text-gray-600 mb-3">
-                        Showing <span className="font-semibold text-gray-900">{Math.min(displayedItems, filteredData.length)}</span> of{' '}
-                        <span className="font-semibold text-gray-900">{filteredData.length}</span> locations
+                        Showing <span className="font-semibold text-gray-900">{Math.min(displayedItems, gridFilteredData.length)}</span> of{' '}
+                        <span className="font-semibold text-gray-900">{gridFilteredData.length}</span> locations
                       </p>
                       {/* Progress Bar */}
                       <div className="max-w-md mx-auto">
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-slate-600 h-2 rounded-full transition-all duration-300"
                             style={{
-                              width: `${(Math.min(displayedItems, filteredData.length) / filteredData.length) * 100}%`,
+                              width: `${(Math.min(displayedItems, gridFilteredData.length) / gridFilteredData.length) * 100}%`,
                             }}
                           />
                         </div>
@@ -253,10 +314,10 @@ export default function DashboardPage() {
                       {/* Load All Button (Optional) */}
                       {hasMore && !isLoadingMore && (
                         <button
-                          onClick={() => setDisplayedItems(filteredData.length)}
-                          className="mt-4 px-6 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                          onClick={() => setDisplayedItems(gridFilteredData.length)}
+                          className="mt-4 px-6 py-2 text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                         >
-                          Load All Remaining ({filteredData.length - displayedItems})
+                          Load All Remaining ({gridFilteredData.length - displayedItems})
                         </button>
                       )}
                     </div>
