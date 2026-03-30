@@ -7,6 +7,8 @@ import SummaryStats from '@/components/dashboard/SummaryStats';
 import FiltersPanel from '@/components/dashboard/FiltersPanel';
 import LocationCard from '@/components/dashboard/LocationCard';
 import GridFilterBar, { GridFilterState } from '@/components/dashboard/GridFilterBar';
+import MonitoringLayout from '@/components/dashboard/MonitoringLayout';
+import DataPanel from '@/components/dashboard/DataPanel';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
 import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
 
@@ -14,7 +16,7 @@ import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
 const MapView = dynamic(() => import('@/components/dashboard/MapView'), {
   ssr: false,
   loading: () => (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 h-[600px] flex items-center justify-center">
+    <div className="h-150 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
       <div className="text-gray-500">Loading map...</div>
     </div>
   ),
@@ -66,6 +68,11 @@ export default function DashboardPage() {
   // Filter data based on FiltersPanel filters (state & quality)
   const filteredData = filterWaterQualityData(beachData, filters);
 
+  const selectedLocationData = useMemo(
+    () => filteredData.find((item) => item.location.id === selectedLocation),
+    [filteredData, selectedLocation]
+  );
+
   // Apply GridFilterBar filters (search, letter, sort) on top of FiltersPanel filters
   const gridFilteredData = useMemo(() => {
     let result = [...filteredData];
@@ -111,6 +118,17 @@ export default function DashboardPage() {
   const hasMore = viewMode === 'grid' 
     ? gridFilteredData.length > displayedItems
     : filteredData.length > displayedItems;
+
+  useEffect(() => {
+    if (!selectedLocation && filteredData.length > 0) {
+      setSelectedLocation(filteredData[0].location.id);
+      return;
+    }
+
+    if (selectedLocation && !filteredData.some((item) => item.location.id === selectedLocation)) {
+      setSelectedLocation(filteredData[0]?.location.id);
+    }
+  }, [filteredData, selectedLocation]);
 
   // Reset displayed items when filters change
   useEffect(() => {
@@ -175,7 +193,7 @@ export default function DashboardPage() {
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-8">
           <div className="flex">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
@@ -226,16 +244,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-            {/* Filters Sidebar - Show for both views */}
-            <div className="lg:col-span-1">
-              <FiltersPanel filters={filters} onFiltersChange={setFilters} />
-            </div>
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+              <div className="lg:col-span-1">
+                <FiltersPanel filters={filters} onFiltersChange={setFilters} />
+              </div>
 
-            {/* Content Area */}
-            <div className="lg:col-span-3">
-              {viewMode === 'grid' ? (
+              <div className="lg:col-span-3">
                 <>
                   {/* Grid Filter Bar - Additional filters for Grid View */}
                   <div className="mb-6">
@@ -323,15 +338,34 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </>
-              ) : (
+              </div>
+            </div>
+          ) : (
+            <MonitoringLayout
+              mapHeightClass="h-[76vh] lg:h-[84vh]"
+              mapContent={
                 <MapView
+                  mode="fullscreen"
                   locations={filteredData}
                   selectedLocation={selectedLocation}
                   onLocationSelect={setSelectedLocation}
                 />
-              )}
-            </div>
-          </div>
+              }
+              leftPanel={
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <DataPanel
+                      selectedData={selectedLocationData}
+                      totalLocations={filteredData.length}
+                    />
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <FiltersPanel filters={filters} onFiltersChange={setFilters} />
+                  </div>
+                </div>
+              }
+            />
+          )}
         </>
       )}
     </div>
