@@ -260,78 +260,9 @@ export default function MapView({ locations, onLocationSelect, onViewDetails, mo
       (mapContainerRef.current?.closest('[data-monitoring-shell]') as HTMLElement | null) ||
       mapContainerRef.current;
 
-    const shellFrame =
-      fullscreenTargetRef.current?.querySelector('[data-monitoring-shell-frame]') as HTMLElement | null;
-    const mapFrame =
-      fullscreenTargetRef.current?.querySelector('[data-monitoring-map-frame]') as HTMLElement | null;
-
-    const resetFullscreenStyles = () => {
-      if (fullscreenTargetRef.current) {
-        fullscreenTargetRef.current.style.height = '';
-        fullscreenTargetRef.current.style.width = '';
-        fullscreenTargetRef.current.style.maxWidth = '';
-        fullscreenTargetRef.current.style.margin = '';
-        fullscreenTargetRef.current.style.padding = '';
-        fullscreenTargetRef.current.style.background = '';
-        fullscreenTargetRef.current.style.overflow = '';
-      }
-      if (shellFrame) {
-        shellFrame.style.height = '';
-        shellFrame.style.width = '';
-        shellFrame.style.padding = '';
-        shellFrame.style.borderRadius = '';
-        shellFrame.style.border = '';
-        shellFrame.style.boxShadow = '';
-      }
-      if (mapFrame) {
-        mapFrame.style.height = '';
-        mapFrame.style.width = '';
-        mapFrame.style.borderRadius = '';
-        mapFrame.style.border = '';
-      }
-      if (mapContainerRef.current) {
-        mapContainerRef.current.style.height = '';
-        mapContainerRef.current.style.borderRadius = '';
-        mapContainerRef.current.style.border = '';
-      }
-    };
-
     const handleFullscreenChange = () => {
       const isActive = document.fullscreenElement === fullscreenTargetRef.current;
       setIsBrowserFullscreen(isActive);
-
-      if (isActive) {
-        if (fullscreenTargetRef.current) {
-          fullscreenTargetRef.current.style.height = '100vh';
-          fullscreenTargetRef.current.style.width = '100vw';
-          fullscreenTargetRef.current.style.maxWidth = '100vw';
-          fullscreenTargetRef.current.style.margin = '0';
-          fullscreenTargetRef.current.style.padding = '0';
-          fullscreenTargetRef.current.style.background = '#ffffff';
-          fullscreenTargetRef.current.style.overflow = 'hidden';
-        }
-        if (shellFrame) {
-          shellFrame.style.height = '100%';
-          shellFrame.style.width = '100%';
-          shellFrame.style.padding = '0';
-          shellFrame.style.borderRadius = '0';
-          shellFrame.style.border = '0';
-          shellFrame.style.boxShadow = 'none';
-        }
-        if (mapFrame) {
-          mapFrame.style.height = '100%';
-          mapFrame.style.width = '100%';
-          mapFrame.style.borderRadius = '0';
-          mapFrame.style.border = '0';
-        }
-        if (mapContainerRef.current) {
-          mapContainerRef.current.style.height = '100%';
-          mapContainerRef.current.style.borderRadius = '0';
-          mapContainerRef.current.style.border = '0';
-        }
-      } else {
-        resetFullscreenStyles();
-      }
 
       setTimeout(() => {
         mapRef.current?.invalidateSize();
@@ -341,7 +272,6 @@ export default function MapView({ locations, onLocationSelect, onViewDetails, mo
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      resetFullscreenStyles();
     };
   }, []);
 

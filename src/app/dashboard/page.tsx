@@ -9,6 +9,7 @@ import LocationCard from '@/components/dashboard/LocationCard';
 import GridFilterBar, { GridFilterState } from '@/components/dashboard/GridFilterBar';
 import MonitoringLayout from '@/components/dashboard/MonitoringLayout';
 import DataPanel from '@/components/dashboard/DataPanel';
+import TaxonomicView from '@/components/TaxonomicView';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
 import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
 
@@ -24,7 +25,7 @@ const MapView = dynamic(() => import('@/components/dashboard/MapView'), {
 
 export default function DashboardPage() {
   const [filters, setFilters] = useState<WaterQualityFilters>({});
-  const [viewMode, setViewMode] = useState<'grid' | 'map'>('map');
+  const [viewMode, setViewMode] = useState<'grid' | 'map' | 'taxonomic'>('map');
   const [selectedLocation, setSelectedLocation] = useState<string | undefined>();
   const [beachData, setBeachData] = useState<NormalizedWaterQualityData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,10 +242,22 @@ export default function DashboardPage() {
               >
                 Map View
               </button>
+              <button
+                onClick={() => setViewMode('taxonomic')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  viewMode === 'taxonomic'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Taxonomic
+              </button>
             </div>
           </div>
 
-          {viewMode === 'grid' ? (
+          {viewMode === 'taxonomic' ? (
+            <TaxonomicView />
+          ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
               <div className="lg:col-span-1">
                 <FiltersPanel filters={filters} onFiltersChange={setFilters} />
