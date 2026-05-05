@@ -363,20 +363,48 @@ export default function EnhancedPopup({ data, onViewDetails }: EnhancedPopupProp
         </div> */}
       </div>
 
-      {/* Action Button */}
-      {onViewDetails && (
-        <button
-          onClick={() => onViewDetails(location.id)}
-          className="mt-2 w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded 
-                     transition-colors flex items-center justify-center gap-1.5"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-          View Details
-        </button>
-      )}
+      {/* Action Buttons */}
+      <div className="mt-2 space-y-2">
+        {onViewDetails && (
+          <button
+            onClick={() => onViewDetails(location.id)}
+            className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded 
+                       transition-colors flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            View Details
+          </button>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              window.location.href = '/dashboard?view=taxonomic';
+            }}
+            className="flex-1 py-2 px-3 bg-blue-100  hover:bg-blue-300 text-xs font-normal rounded-xl 
+                      transition-all flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Taxonomy
+          </button>
+          <button
+            onClick={() => {
+              window.location.href = '/dashboard?view=mst';
+            }}
+            className="flex-1 py-2 px-3 bg-blue-100  hover:bg-blue-300 text-xs font-normal rounded-xl 
+                      transition-all flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            MST
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

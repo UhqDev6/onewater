@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { NormalizedWaterQualityData, WaterQualityFilters } from '@/lib/types';
 import SummaryStats from '@/components/dashboard/SummaryStats';
@@ -10,6 +11,7 @@ import GridFilterBar, { GridFilterState } from '@/components/dashboard/GridFilte
 import MonitoringLayout from '@/components/dashboard/MonitoringLayout';
 import DataPanel from '@/components/dashboard/DataPanel';
 import TaxonomicView from '@/components/TaxonomicView';
+import MSTView from '@/components/MSTView';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
 import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
 
@@ -23,9 +25,12 @@ const MapView = dynamic(() => import('@/components/dashboard/MapView'), {
   ),
 });
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const searchParams = useSearchParams();
+  const viewParam = searchParams.get('view');
+  
   const [filters, setFilters] = useState<WaterQualityFilters>({});
-  const [viewMode, setViewMode] = useState<'grid' | 'map' | 'taxonomic'>('map');
+  const [viewMode, setViewMode] = useState<'grid' | 'map' | 'taxonomic' | 'mst'>('map');
   const [selectedLocation, setSelectedLocation] = useState<string | undefined>();
   const [beachData, setBeachData] = useState<NormalizedWaterQualityData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +48,13 @@ export default function DashboardPage() {
   const [displayedItems, setDisplayedItems] = useState(20);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Set initial view mode from URL parameter
+  useEffect(() => {
+    if (viewParam === 'taxonomic' || viewParam === 'grid' || viewParam === 'map' || viewParam === 'mst') {
+      setViewMode(viewParam);
+    }
+  }, [viewParam]);
 
   // Create a stable filter key for resetting
   const filterKey = useMemo(() => JSON.stringify(filters), [filters]);
@@ -252,11 +264,23 @@ export default function DashboardPage() {
               >
                 Taxonomic
               </button>
+              <button
+                onClick={() => setViewMode('mst')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  viewMode === 'mst'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                MST
+              </button>
             </div>
           </div>
 
           {viewMode === 'taxonomic' ? (
             <TaxonomicView />
+          ) : viewMode === 'mst' ? (
+            <MSTView />
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
               <div className="lg:col-span-1">
@@ -382,5 +406,22 @@ export default function DashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
