@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { getDataForRecharts, taxonomicMockData } from '@/data/taxonomicMockData';
+import { useLocations } from '@/hooks/useLocations';
 
 type TaxonomicLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type SortOrder = 'asc' | 'desc';
@@ -59,7 +60,11 @@ export default function TaxonomicView() {
   const [palette, setPalette] = useState<PaletteName>('default');
   const [barWidth, setBarWidth] = useState<number>(20);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch locations from API
+  const { locations, isLoading: isLoadingLocations } = useLocations();
 
   const levelsWithData = useMemo(() => {
     return new Set(taxonomicMockData.map((entry) => entry.level as TaxonomicLevel));
@@ -255,7 +260,24 @@ export default function TaxonomicView() {
       </div>
 
       <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Location</span>
+            <select
+              value={selectedLocation}
+              onChange={(event) => setSelectedLocation(event.target.value)}
+              disabled={isLoadingLocations}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
+            >
+              <option value="all">All Locations</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Taxonomic Level</span>
             <select
