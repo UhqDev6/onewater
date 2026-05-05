@@ -117,6 +117,21 @@ type ViewMode = 'percentage' | 'absolute';
 type SortOrder = 'asc' | 'desc';
 type PaletteName = 'default' | 'colorblind-safe' | 'warm' | 'cool';
 
+// Tooltip payload type
+interface TooltipPayloadEntry {
+  dataKey: string;
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+  viewMode: ViewMode;
+}
+
 // Color palettes for different accessibility needs
 const COLOR_PALETTES: Record<PaletteName, { human: string; bovine: string; avian: string; canine: string; other: string }> = {
   default: {
@@ -147,6 +162,46 @@ const COLOR_PALETTES: Record<PaletteName, { human: string; bovine: string; avian
     canine: '#3b82f6',
     other: '#64748b',
   },
+};
+
+// Custom tooltip component (defined outside render to avoid recreation)
+const CustomTooltip = ({ active, payload, label, viewMode }: CustomTooltipProps) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const total = payload.reduce((sum: number, entry: TooltipPayloadEntry) => sum + entry.value, 0);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+      <p className="mb-2 font-semibold text-slate-900">{label}</p>
+      <div className="space-y-1">
+        {payload.slice().reverse().map((entry: TooltipPayloadEntry) => {
+          const percentage = ((entry.value / total) * 100).toFixed(1);
+          return (
+            <div key={entry.dataKey} className="flex items-center justify-between gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-3 w-3 rounded-sm"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="text-slate-700">{entry.name}</span>
+              </div>
+              <span className="font-medium text-slate-900">
+                {viewMode === 'percentage' ? `${percentage}%` : entry.value}
+              </span>
+            </div>
+          );
+        })}
+        {viewMode === 'absolute' && (
+          <div className="mt-2 border-t border-slate-200 pt-2">
+            <div className="flex justify-between text-sm font-semibold">
+              <span className="text-slate-700">Total</span>
+              <span className="text-slate-900">{total}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default function MSTView() {
@@ -207,46 +262,6 @@ export default function MSTView() {
       dominantPercentage: ((dominantSource.value / grandTotal) * 100).toFixed(1),
     };
   }, [sourceCategories]);
-
-  // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload || !payload.length) return null;
-
-    const total = payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
-
-    return (
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-        <p className="mb-2 font-semibold text-slate-900">{label}</p>
-        <div className="space-y-1">
-          {payload.reverse().map((entry: any) => {
-            const percentage = ((entry.value / total) * 100).toFixed(1);
-            return (
-              <div key={entry.dataKey} className="flex items-center justify-between gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-3 w-3 rounded-sm"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="text-slate-700">{entry.name}</span>
-                </div>
-                <span className="font-medium text-slate-900">
-                  {viewMode === 'percentage' ? `${percentage}%` : entry.value}
-                </span>
-              </div>
-            );
-          })}
-          {viewMode === 'absolute' && (
-            <div className="mt-2 border-t border-slate-200 pt-2">
-              <div className="flex justify-between text-sm font-semibold">
-                <span className="text-slate-700">Total</span>
-                <span className="text-slate-900">{total}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:p-6">
@@ -373,7 +388,7 @@ export default function MSTView() {
               }}
               domain={viewMode === 'percentage' ? [0, 100] : [0, 'auto']}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip viewMode={viewMode} />} />
             <Legend
               wrapperStyle={{ paddingTop: '20px' }}
               iconType="square"
