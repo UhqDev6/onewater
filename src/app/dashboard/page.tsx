@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { NormalizedWaterQualityData, WaterQualityFilters } from '@/lib/types';
@@ -25,7 +25,7 @@ const MapView = dynamic(() => import('@/components/dashboard/MapView'), {
   ),
 });
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get('view');
   
@@ -406,5 +406,22 @@ export default function DashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
