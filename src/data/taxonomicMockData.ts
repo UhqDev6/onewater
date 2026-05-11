@@ -3,11 +3,26 @@ export type TaxonEntry = {
   level: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   taxon: string;
   relative_frequency: number;
+  sample_date: string; // ISO date string (YYYY-MM-DD)
 };
 
 type AvailableMockLevel = 1 | 2 | 3 | 4;
 
 const SAMPLE_IDS = Array.from({ length: 20 }, (_, index) => `L${String(index + 1).padStart(2, '0')}`);
+
+// Generate sample dates spread across 2024
+const SAMPLE_DATES = Array.from({ length: 20 }, (_, index) => {
+  const startDate = new Date('2024-01-01');
+  const endDate = new Date('2024-12-31');
+  const timeDiff = endDate.getTime() - startDate.getTime();
+  const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+  
+  // Distribute samples evenly across the year
+  const dayOffset = Math.floor((daysDiff / 19) * index);
+  const sampleDate = new Date(startDate.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
+  
+  return sampleDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+});
 
 const LEVEL_TAXA: Record<AvailableMockLevel, string[]> = {
   1: ['k__Bacteria', 'k__Archaea', 'k__Unassigned'],
@@ -91,12 +106,14 @@ function createLevelEntries(level: AvailableMockLevel): TaxonEntry[] {
 
   return SAMPLE_IDS.flatMap((sample_id, sampleIndex) => {
     const normalized = normalizeToTenThousand(buildSampleWeights(level, sampleIndex));
+    const sample_date = SAMPLE_DATES[sampleIndex];
 
     return taxa.map((taxon, taxonIndex) => ({
       sample_id,
       level,
       taxon,
       relative_frequency: normalized[taxonIndex],
+      sample_date,
     }));
   });
 }

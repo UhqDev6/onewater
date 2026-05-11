@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode, useMemo, useRef, useState } from 'react';
+import { ReactNode, useMemo, useRef, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Bar,
   BarChart,
@@ -12,6 +13,8 @@ import {
 } from 'recharts';
 import { getDataForRecharts, taxonomicMockData } from '@/data/taxonomicMockData';
 import { useLocations } from '@/hooks/useLocations';
+import { useDateRangeFilter } from '@/hooks/useDateRangeFilter';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
 
 type TaxonomicLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type SortOrder = 'asc' | 'desc';
@@ -54,36 +57,71 @@ function calculateShannonForSample(probabilities: number[]): number {
 }
 
 export default function TaxonomicView() {
+  const searchParams = useSearchParams();
+  const locationParam = searchParams.get('location');
+  
   const [taxonomicLevel, setTaxonomicLevel] = useState<TaxonomicLevel>(2);
   const [sortBy, setSortBy] = useState<string>('sample_id');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [palette, setPalette] = useState<PaletteName>('default');
   const [barWidth, setBarWidth] = useState<number>(20);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch locations from API
   const { locations, isLoading: isLoadingLocations } = useLocations();
 
+  // Date range filter hook
+  const {
+    dateRange,
+    setDateRange,
+    resetDateRange,
+    filterDataByDateRange,
+  } = useDateRangeFilter({
+    defaultStartDate: '2024-01-01',
+    defaultEndDate: '2024-12-31',
+  });
+
+  // Calculate initial selected location based on URL parameter and available locations
+  const initialSelectedLocation = useMemo(() => {
+    if (locationParam && locations.length > 0) {
+      const locationExists = locations.some(loc => loc.id === locationParam);
+      return locationExists ? locationParam : 'all';
+    }
+    return 'all';
+  }, [locationParam, locations]);
+
+  const [selectedLocation, setSelectedLocation] = useState<string>(initialSelectedLocation);
+
+  // Update selected location when initial value changes
+  useEffect(() => {
+    setSelectedLocation(initialSelectedLocation);
+  }, [initialSelectedLocation]);
+
   const levelsWithData = useMemo(() => {
-    return new Set(taxonomicMockData.map((entry) => entry.level as TaxonomicLevel));
-  }, []);
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(taxonomicMockData, (entry) => entry.sample_date);
+    return new Set(filteredByDate.map((entry) => entry.level as TaxonomicLevel));
+  }, [filterDataByDateRange]);
 
   const taxaForCurrentLevel = useMemo(() => {
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(taxonomicMockData, (entry) => entry.sample_date);
     return Array.from(
       new Set(
-        taxonomicMockData
+        filteredByDate
           .filter((entry) => entry.level === taxonomicLevel)
           .map((entry) => entry.taxon)
       )
     );
-  }, [taxonomicLevel]);
+  }, [taxonomicLevel, filterDataByDateRange]);
 
   const chartData = useMemo(() => {
-    const sorted = getDataForRecharts(taxonomicMockData, taxonomicLevel, sortBy);
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(taxonomicMockData, (entry) => entry.sample_date);
+    const sorted = getDataForRecharts(filteredByDate, taxonomicLevel, sortBy);
     return sortOrder === 'asc' ? sorted : [...sorted].reverse();
-  }, [taxonomicLevel, sortBy, sortOrder]);
+  }, [taxonomicLevel, sortBy, sortOrder, filterDataByDateRange]);
 
   const colorByTaxon = useMemo(() => {
     const activePalette = COLOR_PALETTES[palette];
@@ -149,7 +187,9 @@ export default function TaxonomicView() {
   };
 
   const dominantTaxon = useMemo(() => {
-    const levelRows = taxonomicMockData.filter((entry) => entry.level === taxonomicLevel);
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(taxonomicMockData, (entry) => entry.sample_date);
+    const levelRows = filteredByDate.filter((entry) => entry.level === taxonomicLevel);
     const grouped = new Map<string, number[]>();
 
     for (const row of levelRows) {
@@ -171,10 +211,12 @@ export default function TaxonomicView() {
     });
 
     return toDisplayTaxon(bestTaxon);
-  }, [taxonomicLevel]);
+  }, [taxonomicLevel, filterDataByDateRange]);
 
   const shannonIndex = useMemo(() => {
-    const levelRows = taxonomicMockData.filter((entry) => entry.level === taxonomicLevel);
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(taxonomicMockData, (entry) => entry.sample_date);
+    const levelRows = filteredByDate.filter((entry) => entry.level === taxonomicLevel);
     const sampleGroups = new Map<string, number[]>();
 
     for (const row of levelRows) {
@@ -188,16 +230,32 @@ export default function TaxonomicView() {
     const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
 
     return mean;
-  }, [taxonomicLevel]);
+  }, [taxonomicLevel, filterDataByDateRange]);
+
+  // Calculate environment type based on selected location
+  const environmentType = useMemo(() => {
+    if (selectedLocation === 'all') {
+      return 'Mixed';
+    }
+    
+    const location = locations.find(loc => loc.id === selectedLocation);
+    if (!location) {
+      return 'Unknown';
+    }
+    
+    // Check if location name contains "beach" (case insensitive)
+    const isBeach = location.name.toLowerCase().includes('beach');
+    return isBeach ? 'Marine' : 'Freshwater';
+  }, [selectedLocation, locations]);
 
   const summaryCards = useMemo(
     () => [
       { label: 'Total Taxa', value: String(taxaForCurrentLevel.length) },
       { label: 'Dominant Taxon', value: dominantTaxon },
       { label: 'Shannon Diversity Index', value: shannonIndex.toFixed(3) },
-      { label: 'Pathogen Flags', value: '2' },
+      { label: 'Environment Type', value: environmentType },
     ],
-    [dominantTaxon, shannonIndex, taxaForCurrentLevel.length]
+    [dominantTaxon, shannonIndex, taxaForCurrentLevel.length, environmentType]
   );
 
   const handleDownloadCsv = (): void => {
@@ -259,8 +317,9 @@ export default function TaxonomicView() {
         ))}
       </div>
 
-      <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-5 space-y-4">
+        {/* First Row: Location and Date Range */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Location</span>
             <select
@@ -278,99 +337,112 @@ export default function TaxonomicView() {
             </select>
           </label>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Taxonomic Level</span>
-            <select
-              value={taxonomicLevel}
-              onChange={(event) => {
-                const nextLevel = Number(event.target.value) as TaxonomicLevel;
-                setTaxonomicLevel(nextLevel);
-                setSortBy('sample_id');
-              }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-            >
-              {ALL_LEVELS.map((level) => (
-                <option key={level} value={level} disabled={!levelsWithData.has(level)}>
-                  {`Level ${level} — ${LEVEL_RANK_LABELS[level]}${levelsWithData.has(level) ? '' : ' (no data)'}`}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Sort Samples By</span>
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-            >
-              <option value="sample_id">Sample ID</option>
-              {taxaForCurrentLevel.map((taxon) => (
-                <option key={taxon} value={taxon}>
-                  {toDisplayTaxon(taxon)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Sort Order</span>
-            <select
-              value={sortOrder}
-              onChange={(event) => setSortOrder(event.target.value as SortOrder)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-            >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Color Palette</span>
-            <select
-              value={palette}
-              onChange={(event) => setPalette(event.target.value as PaletteName)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-            >
-              <option value="default">Default</option>
-              <option value="colorblind-safe">Colorblind-safe</option>
-              <option value="warm">Warm</option>
-              <option value="cool">Cool</option>
-            </select>
-          </label>
+          <DateRangeFilter
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            onReset={resetDateRange}
+            // label="Sample Date Range"
+            className="lg:col-span-2"
+          />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex min-w-56 flex-col gap-1">
-            <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <span>Bar Width</span>
-              <span className="text-slate-700">{barWidth}px</span>
-            </span>
-            <input
-              type="range"
-              min={10}
-              max={60}
-              step={1}
-              value={barWidth}
-              onChange={(event) => setBarWidth(Number(event.target.value))}
-              className="h-10"
-            />
-          </label>
+        {/* Second Row: Analysis Controls */}
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Taxonomic Level</span>
+              <select
+                value={taxonomicLevel}
+                onChange={(event) => {
+                  const nextLevel = Number(event.target.value) as TaxonomicLevel;
+                  setTaxonomicLevel(nextLevel);
+                  setSortBy('sample_id');
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                {ALL_LEVELS.map((level) => (
+                  <option key={level} value={level} disabled={!levelsWithData.has(level)}>
+                    {`Level ${level} — ${LEVEL_RANK_LABELS[level]}${levelsWithData.has(level) ? '' : ' (no data)'}`}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <button
-            type="button"
-            onClick={handleDownloadCsv}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-          >
-            Download CSV
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadSvg}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-          >
-            Download SVG
-          </button>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Sort Samples By</span>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="sample_id">Sample ID</option>
+                {taxaForCurrentLevel.map((taxon) => (
+                  <option key={taxon} value={taxon}>
+                    {toDisplayTaxon(taxon)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Sort Order</span>
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value as SortOrder)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Color Palette</span>
+              <select
+                value={palette}
+                onChange={(event) => setPalette(event.target.value as PaletteName)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="default">Default</option>
+                <option value="colorblind-safe">Colorblind-safe</option>
+                <option value="warm">Warm</option>
+                <option value="cool">Cool</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="flex min-w-56 flex-col gap-1">
+              <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <span>Bar Width</span>
+                <span className="text-slate-700">{barWidth}px</span>
+              </span>
+              <input
+                type="range"
+                min={10}
+                max={60}
+                step={1}
+                value={barWidth}
+                onChange={(event) => setBarWidth(Number(event.target.value))}
+                className="h-10"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={handleDownloadCsv}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Download CSV
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadSvg}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Download SVG
+            </button>
+          </div>
         </div>
       </div>
 

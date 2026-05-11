@@ -296,6 +296,49 @@ export default function EnhancedPopup({ data, onViewDetails }: EnhancedPopupProp
         </div>
       )}
 
+      {/* Real-time Population & Beach Camera - Grid Layout */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {/* Population */}
+        <div className="bg-gray-50 rounded p-2">
+          <div className="flex items-center gap-1 mb-1">
+            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.196-2.121M9 20H4v-2a3 3 0 015.196-2.121m0 0a5.002 5.002 0 019.608 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wide font-medium">Population</span>
+          </div>
+          <p className="text-[11px] font-semibold text-gray-900">
+            {location.expectedPopulation ? `${location.expectedPopulation} people` : 'N/A'}
+          </p>
+        </div>
+
+        {/* Beach Camera */}
+        <div className="bg-gray-50 rounded p-2">
+          <div className="flex items-center gap-1 mb-1">
+            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wide font-medium">Camera</span>
+          </div>
+          {location.beachCameraUrl ? (
+            <a
+              href={location.beachCameraUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              View Live
+            </a>
+          ) : (
+            <span className="text-[10px] text-gray-400 font-medium">
+              Unavailable
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Historical Trend */}
       {historicalReadings && historicalReadings.length >= 2 && (
         <div className="mt-2 p-2 bg-gray-50 rounded">
@@ -381,7 +424,7 @@ export default function EnhancedPopup({ data, onViewDetails }: EnhancedPopupProp
         <div className="flex gap-2">
           <button
             onClick={() => {
-              window.location.href = '/dashboard?view=taxonomic';
+              window.location.href = `/dashboard?view=taxonomic&location=${location.id}`;
             }}
             className="flex-1 py-2 px-3 bg-blue-100  hover:bg-blue-300 text-xs font-normal rounded-xl 
                       transition-all flex items-center justify-center gap-1.5"
@@ -393,7 +436,7 @@ export default function EnhancedPopup({ data, onViewDetails }: EnhancedPopupProp
           </button>
           <button
             onClick={() => {
-              window.location.href = '/dashboard?view=mst';
+              window.location.href = `/dashboard?view=mst&location=${location.id}`;
             }}
             className="flex-1 py-2 px-3 bg-blue-100  hover:bg-blue-300 text-xs font-normal rounded-xl 
                       transition-all flex items-center justify-center gap-1.5"

@@ -22,6 +22,9 @@ export const BeachwatchFeatureSchema = z.object({
     latestResult: z.string(),
     latestResultRating: z.number().int().min(1).max(5),
     latestResultObservationDate: z.string(),
+    // Updated field names and types
+    expectedPopulation: z.number().nullable().optional(),
+    beachCameraUrl: z.string().nullable().optional(),
   }),
 });
 

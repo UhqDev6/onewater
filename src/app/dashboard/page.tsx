@@ -13,7 +13,39 @@ import DataPanel from '@/components/dashboard/DataPanel';
 import TaxonomicView from '@/components/TaxonomicView';
 import MSTView from '@/components/MSTView';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
-import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
+import { fetchHybridBeachwatchDataSafe } from '@/lib/api/hybridBeachwatch';
+
+// Wrap TaxonomicView with Suspense since it uses useSearchParams
+const TaxonomicViewWithSuspense = () => (
+  <Suspense fallback={
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:p-6">
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading taxonomic view...</p>
+        </div>
+      </div>
+    </div>
+  }>
+    <TaxonomicView />
+  </Suspense>
+);
+
+// Wrap MSTView with Suspense since it uses useSearchParams
+const MSTViewWithSuspense = () => (
+  <Suspense fallback={
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:p-6">
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading MST view...</p>
+        </div>
+      </div>
+    </div>
+  }>
+    <MSTView />
+  </Suspense>
+);
 
 // Dynamic import for MapView to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import('@/components/dashboard/MapView'), {
@@ -64,7 +96,7 @@ function DashboardContent() {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      const { data, error: fetchError } = await fetchNSWBeachwatchDataSafe();
+      const { data, error: fetchError } = await fetchHybridBeachwatchDataSafe();
       
       if (fetchError) {
         setError(fetchError);
@@ -278,9 +310,9 @@ function DashboardContent() {
           </div>
 
           {viewMode === 'taxonomic' ? (
-            <TaxonomicView />
+            <TaxonomicViewWithSuspense />
           ) : viewMode === 'mst' ? (
-            <MSTView />
+            <MSTViewWithSuspense />
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
               <div className="lg:col-span-1">

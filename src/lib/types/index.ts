@@ -16,6 +16,9 @@ export interface BeachLocation {
   region?: string;
   localGovernmentArea?: string;
   beachType?: 'ocean' | 'bay' | 'estuary' | 'river';
+  // Updated field names and types
+  expectedPopulation?: number | null;
+  beachCameraUrl?: string | null;
 }
 
 // ========================================

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { NormalizedWaterQualityData } from '@/lib/types';
 import { getQualityLabel, formatDate } from '@/lib/utils/dataHelpers';
-import { fetchNSWBeachwatchDataSafe } from '@/lib/api/beachwatch';
+import { fetchHybridBeachwatchDataSafe } from '@/lib/api/hybridBeachwatch';
 import Link from 'next/link';
 
 export default function LivePreview() {
@@ -12,7 +12,7 @@ export default function LivePreview() {
 
   useEffect(() => {
     async function loadPreviewData() {
-      const { data } = await fetchNSWBeachwatchDataSafe();
+      const { data } = await fetchHybridBeachwatchDataSafe();
       
       // Get one location for each rating type (good, fair, poor, bad)
       const goodSample = data.find(d => d.latestReading.qualityRating === 'good');
