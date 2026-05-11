@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Bar,
   BarChart,
@@ -11,12 +12,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useLocations } from '@/hooks/useLocations';
+import { useDateRangeFilter } from '@/hooks/useDateRangeFilter';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
 
 // Mock data for MST (Microbial Source Tracking)
 // Represents contamination sources over time
 const mstMockData = [
   {
     month: 'Jan 2024',
+    date: '2024-01-15',
     human: 45,
     bovine: 25,
     avian: 15,
@@ -25,6 +30,7 @@ const mstMockData = [
   },
   {
     month: 'Feb 2024',
+    date: '2024-02-15',
     human: 40,
     bovine: 30,
     avian: 18,
@@ -33,6 +39,7 @@ const mstMockData = [
   },
   {
     month: 'Mar 2024',
+    date: '2024-03-15',
     human: 38,
     bovine: 28,
     avian: 20,
@@ -41,6 +48,7 @@ const mstMockData = [
   },
   {
     month: 'Apr 2024',
+    date: '2024-04-15',
     human: 42,
     bovine: 26,
     avian: 17,
@@ -49,6 +57,7 @@ const mstMockData = [
   },
   {
     month: 'May 2024',
+    date: '2024-05-15',
     human: 50,
     bovine: 22,
     avian: 15,
@@ -57,6 +66,7 @@ const mstMockData = [
   },
   {
     month: 'Jun 2024',
+    date: '2024-06-15',
     human: 48,
     bovine: 24,
     avian: 16,
@@ -65,6 +75,7 @@ const mstMockData = [
   },
   {
     month: 'Jul 2024',
+    date: '2024-07-15',
     human: 44,
     bovine: 27,
     avian: 18,
@@ -73,6 +84,7 @@ const mstMockData = [
   },
   {
     month: 'Aug 2024',
+    date: '2024-08-15',
     human: 46,
     bovine: 25,
     avian: 17,
@@ -81,6 +93,7 @@ const mstMockData = [
   },
   {
     month: 'Sep 2024',
+    date: '2024-09-15',
     human: 43,
     bovine: 28,
     avian: 19,
@@ -89,6 +102,7 @@ const mstMockData = [
   },
   {
     month: 'Oct 2024',
+    date: '2024-10-15',
     human: 47,
     bovine: 26,
     avian: 16,
@@ -97,6 +111,7 @@ const mstMockData = [
   },
   {
     month: 'Nov 2024',
+    date: '2024-11-15',
     human: 49,
     bovine: 23,
     avian: 17,
@@ -105,6 +120,7 @@ const mstMockData = [
   },
   {
     month: 'Dec 2024',
+    date: '2024-12-15',
     human: 51,
     bovine: 22,
     avian: 15,
@@ -205,10 +221,43 @@ const CustomTooltip = ({ active, payload, label, viewMode }: CustomTooltipProps)
 };
 
 export default function MSTView() {
+  const searchParams = useSearchParams();
+  const locationParam = searchParams.get('location');
+  
   const [viewMode, setViewMode] = useState<ViewMode>('percentage');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [palette, setPalette] = useState<PaletteName>('default');
   const [barWidth, setBarWidth] = useState<number>(40);
+
+  // Fetch locations from API
+  const { locations, isLoading: isLoadingLocations } = useLocations();
+
+  // Date range filter hook
+  const {
+    dateRange,
+    setDateRange,
+    resetDateRange,
+    filterDataByDateRange,
+  } = useDateRangeFilter({
+    defaultStartDate: '2024-01-01',
+    defaultEndDate: '2024-12-31',
+  });
+
+  // Calculate initial selected location based on URL parameter and available locations
+  const initialSelectedLocation = useMemo(() => {
+    if (locationParam && locations.length > 0) {
+      const locationExists = locations.some(loc => loc.id === locationParam);
+      return locationExists ? locationParam : 'all';
+    }
+    return 'all';
+  }, [locationParam, locations]);
+
+  const [selectedLocation, setSelectedLocation] = useState<string>(initialSelectedLocation);
+
+  // Update selected location when initial value changes
+  useEffect(() => {
+    setSelectedLocation(initialSelectedLocation);
+  }, [initialSelectedLocation]);
 
   // Get current color palette
   const sourceCategories = useMemo(() => {
@@ -222,17 +271,22 @@ export default function MSTView() {
     ];
   }, [palette]);
 
-  // Sort data based on sort order
+  // Sort data based on sort order and filter by date range
   const sortedData = useMemo(() => {
-    const data = [...mstMockData];
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(mstMockData, (entry) => entry.date);
+    
     if (sortOrder === 'desc') {
-      return data.reverse();
+      return [...filteredByDate].reverse();
     }
-    return data;
-  }, [sortOrder]);
+    return filteredByDate;
+  }, [sortOrder, filterDataByDateRange]);
 
-  // Calculate summary statistics
+  // Calculate summary statistics from filtered data
   const summaryStats = useMemo(() => {
+    // Filter data by date range first
+    const filteredByDate = filterDataByDateRange(mstMockData, (entry) => entry.date);
+    
     const totals = {
       human: 0,
       bovine: 0,
@@ -241,7 +295,7 @@ export default function MSTView() {
       other: 0,
     };
 
-    mstMockData.forEach((entry) => {
+    filteredByDate.forEach((entry) => {
       totals.human += entry.human;
       totals.bovine += entry.bovine;
       totals.avian += entry.avian;
@@ -258,10 +312,75 @@ export default function MSTView() {
     return {
       totals,
       grandTotal,
+      sampleCount: filteredByDate.length,
       dominantSource: sourceCategories.find((s) => s.key === dominantSource.key)?.label || 'Unknown',
-      dominantPercentage: ((dominantSource.value / grandTotal) * 100).toFixed(1),
+      dominantPercentage: grandTotal > 0 ? ((dominantSource.value / grandTotal) * 100).toFixed(1) : '0',
     };
-  }, [sourceCategories]);
+  }, [sourceCategories, filterDataByDateRange]);
+
+  // Calculate environment type based on selected location
+  const environmentType = useMemo(() => {
+    if (selectedLocation === 'all') {
+      return 'Mixed';
+    }
+    
+    const location = locations.find(loc => loc.id === selectedLocation);
+    if (!location) {
+      return 'Unknown';
+    }
+    
+    // Check if location name contains "beach" (case insensitive)
+    const isBeach = location.name.toLowerCase().includes('beach');
+    return isBeach ? 'Marine' : 'Freshwater';
+  }, [selectedLocation, locations]);
+
+  // Download functions
+  const handleDownloadCsv = () => {
+    const headers = ['month', 'date', 'human', 'bovine', 'avian', 'canine', 'other'];
+    const csvLines = [
+      headers.join(','),
+      ...sortedData.map((row) =>
+        headers
+          .map((header) => {
+            const value = row[header as keyof typeof row] ?? '';
+            return `"${String(value).replace(/"/g, '""')}"`;
+          })
+          .join(',')
+      ),
+    ];
+
+    const csvContent = csvLines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = url;
+    anchor.setAttribute('download', `mst-data-${dateRange.startDate}-to-${dateRange.endDate}.csv`);
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadSvg = () => {
+    const svgElement = document.querySelector('#mst-chart svg');
+    if (!svgElement) {
+      return;
+    }
+
+    const serializer = new XMLSerializer();
+    const svgText = serializer.serializeToString(svgElement);
+    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = url;
+    anchor.setAttribute('download', 'mst-chart.svg');
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:p-6">
@@ -272,7 +391,7 @@ export default function MSTView() {
             Total Samples
           </p>
           <p className="mt-2 text-lg font-semibold text-slate-900">
-            {mstMockData.length}
+            {summaryStats.sampleCount}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -293,77 +412,123 @@ export default function MSTView() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-            Total Detections
+            Environment Type
           </p>
           <p className="mt-2 text-lg font-semibold text-slate-900">
-            {summaryStats.grandTotal}
+            {environmentType}
           </p>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-5 space-y-4">
+        {/* First Row: Location and Date Range */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 items-end">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">View Mode</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Location</span>
             <select
-              value={viewMode}
-              onChange={(event) => setViewMode(event.target.value as ViewMode)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              value={selectedLocation}
+              onChange={(event) => setSelectedLocation(event.target.value)}
+              disabled={isLoadingLocations}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
             >
-              <option value="percentage">Percentage</option>
-              <option value="absolute">Absolute</option>
+              <option value="all">All Locations</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
             </select>
           </label>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Sort Order</span>
-            <select
-              value={sortOrder}
-              onChange={(event) => setSortOrder(event.target.value as SortOrder)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-            >
-              <option value="asc">Ascending (Jan → Dec)</option>
-              <option value="desc">Descending (Dec → Jan)</option>
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Color Palette</span>
-            <select
-              value={palette}
-              onChange={(event) => setPalette(event.target.value as PaletteName)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
-            >
-              <option value="default">Default</option>
-              <option value="colorblind-safe">Colorblind-safe</option>
-              <option value="warm">Warm</option>
-              <option value="cool">Cool</option>
-            </select>
-          </label>
+          <DateRangeFilter
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            onReset={resetDateRange}
+            // label="Sample Date Range"
+            className="lg:col-span-2"
+          />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex min-w-56 flex-col gap-1">
-            <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <span>Bar Width</span>
-              <span className="text-slate-700">{barWidth}px</span>
-            </span>
-            <input
-              type="range"
-              min={20}
-              max={80}
-              step={5}
-              value={barWidth}
-              onChange={(event) => setBarWidth(Number(event.target.value))}
-              className="h-10"
-            />
-          </label>
+        {/* Second Row: Analysis Controls */}
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">View Mode</span>
+              <select
+                value={viewMode}
+                onChange={(event) => setViewMode(event.target.value as ViewMode)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="percentage">Percentage</option>
+                <option value="absolute">Absolute</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Sort Order</span>
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value as SortOrder)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="asc">Ascending (Jan → Dec)</option>
+                <option value="desc">Descending (Dec → Jan)</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Color Palette</span>
+              <select
+                value={palette}
+                onChange={(event) => setPalette(event.target.value as PaletteName)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="default">Default</option>
+                <option value="colorblind-safe">Colorblind-safe</option>
+                <option value="warm">Warm</option>
+                <option value="cool">Cool</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="flex min-w-56 flex-col gap-1">
+              <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <span>Bar Width</span>
+                <span className="text-slate-700">{barWidth}px</span>
+              </span>
+              <input
+                type="range"
+                min={20}
+                max={80}
+                step={5}
+                value={barWidth}
+                onChange={(event) => setBarWidth(Number(event.target.value))}
+                className="h-10"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={handleDownloadCsv}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Download CSV
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadSvg}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Download SVG
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Stacked Bar Chart */}
-      <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div id="mst-chart" className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
         <ResponsiveContainer width="100%" height={450}>
           <BarChart
             data={sortedData}
