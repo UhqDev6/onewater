@@ -10,7 +10,7 @@ import LocationCard from '@/components/dashboard/LocationCard';
 import GridFilterBar, { GridFilterState } from '@/components/dashboard/GridFilterBar';
 import MonitoringLayout from '@/components/dashboard/MonitoringLayout';
 import DataPanel from '@/components/dashboard/DataPanel';
-import TaxonomicView from '@/components/TaxonomicView';
+import TaxonomicView from '@/components/TaxonomicViewReal';
 import MSTView from '@/components/MSTView';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
 import { fetchHybridBeachwatchDataSafe } from '@/lib/api/hybridBeachwatch';

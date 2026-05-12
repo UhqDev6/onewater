@@ -62,3 +62,19 @@ export interface InternalLocation {
   created_at: string;
   updated_at: string;
 }
+
+export interface TaxonomyMeasurement {
+  id: string;
+  sample_id: string;
+  observation_date: string;
+  environment: string;
+  source_sink?: string;
+  domain?: string;
+  phylum?: string;
+  class?: string;
+  order_tax?: string;
+  family?: string;
+  genus?: string;
+  abundance_value: number;
+  created_at: string;
+}
