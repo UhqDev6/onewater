@@ -808,7 +808,7 @@ export default function TaxonomicViewReal() {
                   onMouseEnter={(data) => {
                     handleBarMouseEnter(data, taxon);
                   }}
-                  onClick={(data, index, event) => {
+                  onClick={(data, _index, event) => {
                     // Get sample data and position for pinned tooltip
                     const sampleId = data?.payload?.sample_id;
                     if (sampleId) {
