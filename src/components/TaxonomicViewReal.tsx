@@ -54,6 +54,12 @@ export default function TaxonomicViewReal() {
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [showAllTaxa, setShowAllTaxa] = useState<boolean>(false); // Toggle for showing all taxa
+  const [clickedSample, setClickedSample] = useState<string | null>(null); // For pinned tooltip
+  const [pinnedTooltipData, setPinnedTooltipData] = useState<{
+    sampleId: string;
+    data: Array<{ name: string; value: number; color: string }>;
+    position: { x: number; y: number };
+  } | null>(null);
 
   // Cascading filters
   const [filters, setFilters] = useState<TaxonomyFilters>({});
@@ -210,6 +216,19 @@ export default function TaxonomicViewReal() {
       return () => clearTimeout(timer);
     }
   }, [taxonomicLevel, sortOrder, taxonomyData.length]);
+
+  // Close pinned tooltip on ESC key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && pinnedTooltipData) {
+        setClickedSample(null);
+        setPinnedTooltipData(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [pinnedTooltipData]);
 
   // Get unique taxa for current level (for stacked bars)
   // Filter out taxa with very low total abundance (< 0.1% of total)
@@ -724,23 +743,9 @@ export default function TaxonomicViewReal() {
               />
               <YAxis label={{ value: 'Abundance', angle: -90, position: 'insideLeft' }} />
               <Tooltip 
-                formatter={(value, name, props) => {
-                  const numValue = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
-                  
-                  // Calculate total abundance for this sample
-                  const payload = (props as { payload?: Record<string, number | string> }).payload || {};
-                  const total = uniqueTaxa.reduce((sum, taxon) => {
-                    const val = payload[taxon];
-                    return sum + (typeof val === 'number' ? val : 0);
-                  }, 0);
-                  
-                  // Calculate percentage
-                  const percentage = total > 0 ? ((numValue / total) * 100).toFixed(1) : '0.0';
-                  
-                  return [`${numValue.toFixed(2)} (${percentage}%)`, String(name)];
-                }}
-                labelFormatter={(label) => `Sample: ${String(label)}`}
                 content={({ active, payload, label }) => {
+                  // Don't show if pinned tooltip is active
+                  if (pinnedTooltipData) return null;
                   if (!active || !payload || payload.length === 0) return null;
                   
                   // Sort by value descending and take top 10
@@ -758,7 +763,12 @@ export default function TaxonomicViewReal() {
                   return (
                     <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-3 max-w-xs">
                       <p className="font-semibold text-sm mb-2 text-gray-900">Sample: {label}</p>
-                      <div className="space-y-1 max-h-64 overflow-y-auto">
+                      
+                      <p className="text-xs text-gray-500 mb-2">
+                        Top {displayItems.length} of {sortedPayload.length} taxa
+                      </p>
+                      
+                      <div className="space-y-1 max-h-64">
                         {displayItems.map((item, index) => {
                           const value = Number(item.value) || 0;
                           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
@@ -778,9 +788,10 @@ export default function TaxonomicViewReal() {
                           );
                         })}
                       </div>
+                      
                       {hiddenCount > 0 && (
-                        <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">
-                          + {hiddenCount} more taxa (see table below)
+                        <p className="text-xs text-blue-600 mt-2 pt-2 border-t border-gray-200">
+                          Click bar to see all {sortedPayload.length} taxa
                         </p>
                       )}
                     </div>
@@ -797,10 +808,111 @@ export default function TaxonomicViewReal() {
                   onMouseEnter={(data) => {
                     handleBarMouseEnter(data, taxon);
                   }}
+                  onClick={(data, index, event) => {
+                    // Get sample data and position for pinned tooltip
+                    const sampleId = data?.payload?.sample_id;
+                    if (sampleId) {
+                      // Toggle: if clicking same sample, close it
+                      if (clickedSample === sampleId) {
+                        setClickedSample(null);
+                        setPinnedTooltipData(null);
+                        return;
+                      }
+
+                      // Prepare data for pinned tooltip
+                      const sampleData = chartData.find(d => d.sample_id === sampleId);
+                      if (sampleData) {
+                        const tooltipData = uniqueTaxa
+                          .map(t => ({
+                            name: t,
+                            value: typeof sampleData[t] === 'number' ? sampleData[t] as number : 0,
+                            color: colorByTaxon[t],
+                          }))
+                          .filter(item => item.value > 0)
+                          .sort((a, b) => b.value - a.value);
+
+                        // Get click position
+                        const rect = (event?.target as SVGElement)?.getBoundingClientRect();
+                        const position = rect ? {
+                          x: rect.left + rect.width / 2,
+                          y: rect.top,
+                        } : { x: 0, y: 0 };
+
+                        setClickedSample(sampleId);
+                        setPinnedTooltipData({
+                          sampleId,
+                          data: tooltipData,
+                          position,
+                        });
+                      }
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
                 />
               ))}
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Custom Pinned Tooltip (outside Recharts) */}
+      {pinnedTooltipData && (
+        <div
+          className="fixed bg-white border-2 border-blue-500 rounded-lg shadow-2xl p-3 max-w-xs z-50"
+          style={{
+            left: `${pinnedTooltipData.position.x}px`,
+            top: `${pinnedTooltipData.position.y - 20}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          {/* Header with close button */}
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm text-gray-900">
+              Sample: {pinnedTooltipData.sampleId}
+              <span className="ml-1 text-xs text-blue-600">(pinned)</span>
+            </p>
+            <button
+              onClick={() => {
+                setClickedSample(null);
+                setPinnedTooltipData(null);
+              }}
+              className="text-gray-400 hover:text-gray-600 text-xl leading-none font-bold"
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-500 mb-2">
+            All {pinnedTooltipData.data.length} taxa
+          </p>
+
+          {/* Scrollable content */}
+          <div className="space-y-1 max-h-80 overflow-y-auto pr-2">
+            {pinnedTooltipData.data.map((item, index) => {
+              const total = pinnedTooltipData.data.reduce((sum, d) => sum + d.value, 0);
+              const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
+              return (
+                <div key={index} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div
+                      className="w-2 h-2 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-gray-700 truncate">{item.name}</span>
+                  </div>
+                  <span className="text-gray-900 font-medium whitespace-nowrap">
+                    {item.value.toFixed(2)} ({percentage}%)
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Hint */}
+          <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-200">
+            Scroll to see all taxa • Click × or ESC to close
+          </p>
         </div>
       )}
 
