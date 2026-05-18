@@ -50,7 +50,7 @@ export default function TaxonomicViewReal() {
   const [taxonomicLevel, setTaxonomicLevel] = useState<TaxonomicLevel>('domain');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [palette, setPalette] = useState<PaletteName>('default');
-  const [barWidth, setBarWidth] = useState<number>(40);
+  const [barWidth, setBarWidth] = useState<number>(25);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [showAllTaxa, setShowAllTaxa] = useState<boolean>(false); // Toggle for showing all taxa
