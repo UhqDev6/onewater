@@ -175,29 +175,71 @@ export default function TaxonomicViewReal() {
   const chartData = useMemo(() => {
     if (taxonomyData.length === 0) return [];
 
-    // Group by sample_id
-    const sampleGroups = taxonomyData.reduce((acc, item) => {
-      if (!acc[item.sample_id]) {
-        acc[item.sample_id] = {
+    // Step 1: Group by sample_id and sum abundance per taxon
+    const sampleGroups: Record<string, {
+      sample_id: string;
+      observation_date: string;
+      taxa: Record<string, number>;
+      total: number;
+    }> = {};
+    
+    taxonomyData.forEach(item => {
+      if (!sampleGroups[item.sample_id]) {
+        sampleGroups[item.sample_id] = {
           sample_id: item.sample_id,
           observation_date: item.observation_date,
+          taxa: {},
+          total: 0,
         };
       }
       
       // Get taxon name for current level
       const taxonName = item[taxonomicLevel] || 'Unknown';
       
-      // Sum abundance for this taxon in this sample
-      const currentValue = acc[item.sample_id][taxonName];
-      const numericValue = typeof currentValue === 'number' ? currentValue : 0;
-      acc[item.sample_id][taxonName] = numericValue + item.abundance_value;
-      
-      return acc;
-    }, {} as Record<string, Record<string, string | number>>);
+      // Sum abundance for this taxon
+      if (!sampleGroups[item.sample_id].taxa[taxonName]) {
+        sampleGroups[item.sample_id].taxa[taxonName] = 0;
+      }
+      sampleGroups[item.sample_id].taxa[taxonName] += item.abundance_value;
+      sampleGroups[item.sample_id].total += item.abundance_value;
+    });
 
-    // Convert to array and sort
-    const samples = Object.values(sampleGroups);
+    // DEBUG: Log first sample to see what's happening
+    const firstSample = Object.values(sampleGroups)[0];
+    if (firstSample) {
+      console.log('🔍 DEBUG - First Sample:', {
+        sample_id: firstSample.sample_id,
+        total: firstSample.total,
+        taxa: firstSample.taxa,
+        taxonomicLevel,
+      });
+    }
+
+    // Step 2: Convert abundance to percentage
+    const samples = Object.values(sampleGroups).map(sample => {
+      const result: Record<string, string | number> = {
+        sample_id: sample.sample_id,
+        observation_date: sample.observation_date,
+      };
+      
+      // Convert each taxon to percentage
+      Object.entries(sample.taxa).forEach(([taxonName, abundance]) => {
+        result[taxonName] = sample.total > 0 ? (abundance / sample.total) * 100 : 0;
+      });
+      
+      return result;
+    });
     
+    // DEBUG: Log first converted sample
+    if (samples[0]) {
+      console.log('🔍 DEBUG - First Sample (Percentage):', samples[0]);
+      const percentageSum = Object.entries(samples[0])
+        .filter(([key]) => key !== 'sample_id' && key !== 'observation_date')
+        .reduce((sum, [, value]) => sum + (value as number), 0);
+      console.log('🔍 DEBUG - Percentage Sum:', percentageSum);
+    }
+    
+    // Step 3: Sort
     if (sortOrder === 'asc') {
       return samples.sort((a, b) => String(a.sample_id).localeCompare(String(b.sample_id)));
     } else {
@@ -741,7 +783,11 @@ export default function TaxonomicViewReal() {
                 height={100}
                 interval={0}
               />
-              <YAxis label={{ value: 'Abundance', angle: -90, position: 'insideLeft' }} />
+              <YAxis 
+                domain={[0, 100]}
+                tickFormatter={(value) => `${Math.round(value)}%`}
+                label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} 
+              />
               <Tooltip 
                 content={({ active, payload, label }) => {
                   // Don't show if pinned tooltip is active
