@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { NormalizedWaterQualityData } from '@/lib/types';
 import { getQualityLabel, formatDate } from '@/lib/utils/dataHelpers';
 import { fetchHybridBeachwatchDataSafe } from '@/lib/api/hybridBeachwatch';
-import Link from 'next/link';
 
 export default function LivePreview() {
   const [previewData, setPreviewData] = useState<NormalizedWaterQualityData[]>([]);
@@ -139,52 +138,6 @@ export default function LivePreview() {
                   <div className="absolute inset-0 rounded-2xl border-2 border-blue-400/0 group-hover:border-blue-400/30 transition-colors duration-300 pointer-events-none"></div>
                 </div>
               ))}
-            </div>
-
-            {/* CTA - Research Paper Citation Style */}
-            <div className="text-center bg-white/60 backdrop-blur-sm rounded-2xl border-2 border-gray-200 p-8 shadow-lg">
-              <div className="mb-4">
-                <p className="text-xs font-mono text-gray-500 uppercase tracking-widest mb-2">
-                  Complete Dataset Available
-                </p>
-                <p className="text-2xl font-bold text-gray-900 mb-1">
-                  245+ Active Monitoring Stations
-                </p>
-                <p className="text-sm text-gray-600 font-light">
-                  Comprehensive coverage across New South Wales coastal regions
-                </p>
-              </div>
-              
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-4 text-base font-bold text-white shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 border-2 border-blue-500/20"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
-                </svg>
-                Access Full Dashboard
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
-              
-              <div className="mt-6 flex items-center justify-center gap-6 text-xs text-gray-500 font-mono">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>Live Data</span>
-                </div>
-                <span className="text-gray-300">•</span>
-                <div className="flex items-center gap-2">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span>Validated Sources</span>
-                </div>
-                <span className="text-gray-300">•</span>
-                <div className="flex items-center gap-2">
-                  <span>Updated</span>
-                </div>
-              </div>
             </div>
           </>
         )}
