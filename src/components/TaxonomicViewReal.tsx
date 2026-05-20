@@ -829,11 +829,22 @@ export default function TaxonomicViewReal() {
                 textAnchor="end"
                 height={100}
                 interval={0}
+                tick={{fontSize: 9}}
               />
               <YAxis 
                 domain={[0, 100]}
                 tickFormatter={(value) => `${Math.round(value)}%`}
-                label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} 
+                label={{ 
+                  value: 'Relative Abundance (%)', 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  offset: 0,           // Memberi jarak dari garis sumbu
+                  style: { 
+                    textAnchor: 'middle', 
+                    fontSize: 14, 
+                    fill: '#333'
+                  }
+                }}
               />
               <Tooltip 
                 content={({ active, payload, label }) => {
