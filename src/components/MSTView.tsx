@@ -249,6 +249,7 @@ export default function MSTView() {
       return {
         totals: {},
         sums: {}, // Add sums for pie chart
+        medians: {}, // Add medians for analytics table
         grandTotal: 0,
         grandSum: 0, // Add grand sum for pie chart
         sampleCount: 0,
@@ -259,9 +260,10 @@ export default function MSTView() {
       };
     }
 
-    // Calculate both average percentages AND sums
+    // Calculate both average percentages AND sums AND medians
     const averages: Record<string, number> = {};
     const sums: Record<string, number> = {}; // For pie chart
+    const allValues: Record<string, number[]> = {}; // For median calculation
     const counts: Record<string, number> = {};
     let totalEnterococci = 0;
     let totalRainfall = 0;
@@ -276,10 +278,12 @@ export default function MSTView() {
         if (!averages[key]) {
           averages[key] = 0;
           sums[key] = 0;
+          allValues[key] = [];
           counts[key] = 0;
         }
         averages[key] += contrib.value;
         sums[key] += contrib.value; // Sum for pie chart
+        allValues[key].push(contrib.value); // Store for median
         counts[key] += 1;
       });
 
@@ -294,6 +298,16 @@ export default function MSTView() {
       totals[key] = averages[key] / counts[key];
     });
 
+    // Calculate median for each source
+    const medians: Record<string, number> = {};
+    Object.keys(allValues).forEach(key => {
+      const sorted = [...allValues[key]].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      medians[key] = sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    });
+
     const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
     const grandSum = Object.values(sums).reduce((sum, val) => sum + val, 0);
 
@@ -306,6 +320,7 @@ export default function MSTView() {
     return {
       totals,
       sums, // Add sums for pie chart
+      medians, // Add medians for analytics table
       grandTotal,
       grandSum, // Add grand sum for pie chart
       sampleCount: filteredByDate.length,
@@ -467,7 +482,7 @@ export default function MSTView() {
             {summaryStats.avgEnterococci}
           </p>
           <p className="text-xs text-slate-500">
-            {viewMode === 'microbial' ? 'MPN/100ml' : 'CFU/100ml'}
+            MPN/100 mL
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
@@ -647,7 +662,7 @@ export default function MSTView() {
                     angle={-45}
                     textAnchor="end"
                     height={90}
-                    tick={{ fontSize: 12, fill: '#475569' }}
+                    tick={{ fontSize: 10, fill: '#475569' }}
                   />
                   <YAxis
                     tick={{ fontSize: 12, fill: '#475569' }}
@@ -859,14 +874,27 @@ export default function MSTView() {
             <ComposedChart
               data={sortedData.map(item => {
                 const row = rawData.find(d => d.sampling_date === item.date);
+                // For log scale: convert 0 to null (won't be plotted) or use minimum value
+                const enterococciValue = item.enterococci > 0 ? item.enterococci : null;
+                
+                // DEBUG: Log first few samples to check data
+                if (sortedData.indexOf(item) < 3) {
+                  console.log('🔍 Enterococci Data:', {
+                    sample: row?.sample_id,
+                    enterococci: item.enterococci,
+                    enterococciValue,
+                    rainfall: item.rainfall,
+                  });
+                }
+                
                 return {
                   label: row?.sample_id || item.date,
-                  enterococci: item.enterococci,
+                  enterococci: enterococciValue,
                   rainfall: item.rainfall,
                   date: item.date,
                 };
               })}
-              margin={{ top: 20, right: 60, left: 20, bottom: 60 }}
+              margin={{ top: 20, right: 110, left: 70, bottom: 60 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
@@ -878,23 +906,35 @@ export default function MSTView() {
               />
               <YAxis
                 yAxisId="left"
+                scale="log"
+                domain={[1, 'dataMax']}
+                width={80}
                 tick={{ fontSize: 12, fill: '#475569' }}
+                tickFormatter={(value) => {
+                  // Format as clean integers for log scale
+                  if (value >= 1000) return `${(value / 1000)}k`;
+                  if (value >= 100) return value.toString();
+                  if (value >= 10) return value.toString();
+                  return value.toString();
+                }}
                 label={{
-                  value: `Enterococci (${viewMode === 'microbial' ? 'MPN' : 'MPN'}/100ml)`,
+                  value: 'Enterococci (MPN/100 mL)',
                   angle: -90,
                   position: 'insideLeft',
                   style: { fontSize: 12, fill: '#0ea5e9', textAnchor: 'middle' },
                 }}
+                allowDataOverflow={false}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
+                width={100}
                 tick={{ fontSize: 12, fill: '#475569' }}
                 label={{
-                  value: 'Rainfall 48h (mm)',
+                  value: '48 hrs antecedent rainfall (mm)',
                   angle: 90,
                   position: 'insideRight',
-                  style: { fontSize: 12, fill: '#64748b', textAnchor: 'middle' },
+                  style: { fontSize: 11, fill: '#64748b', textAnchor: 'middle' },
                 }}
               />
               <Tooltip
@@ -915,7 +955,7 @@ export default function MSTView() {
                             </div>
                             <span className="font-medium text-slate-900">
                               {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
-                              {entry.dataKey === 'rainfall' ? ' mm' : ''}
+                              {entry.dataKey === 'rainfall' ? ' mm' : ' MPN/100 mL'}
                             </span>
                           </div>
                         ))}
@@ -942,6 +982,7 @@ export default function MSTView() {
                 stroke="#0ea5e9"
                 strokeWidth={2}
                 dot={{ fill: '#0ea5e9', r: 4 }}
+                connectNulls={false}
                 name="Enterococci"
               />
             </ComposedChart>
@@ -961,11 +1002,7 @@ export default function MSTView() {
       {rawData.length > 0 && (
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {sourceCategories.map((source) => {
-            const sum = summaryStats.sums[source.key] || 0;
-            const average = summaryStats.totals[source.key] || 0;
-            const percentage = summaryStats.grandSum > 0 
-              ? ((sum / summaryStats.grandSum) * 100).toFixed(1) 
-              : '0.0';
+            const median = summaryStats.medians[source.key] || 0;
 
             return (
               <div
@@ -983,16 +1020,8 @@ export default function MSTView() {
                 </div>
                 <div className="text-xs text-slate-600">
                   <div className="flex justify-between">
-                    <span>Total %:</span>
-                    <span className="font-medium text-slate-900">{sum.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span>Of Total:</span>
-                    <span className="font-medium text-slate-900">{percentage}%</span>
-                  </div>
-                  <div className="flex justify-between mt-1 pt-1 border-t border-slate-100">
-                    <span className="text-slate-500">Avg:</span>
-                    <span className="font-medium text-slate-700">{average.toFixed(1)}%</span>
+                    <span>Median %:</span>
+                    <span className="font-medium text-slate-900">{median.toFixed(1)}%</span>
                   </div>
                 </div>
               </div>
