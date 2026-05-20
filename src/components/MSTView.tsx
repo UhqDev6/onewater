@@ -880,10 +880,10 @@ export default function MSTView() {
                 yAxisId="left"
                 tick={{ fontSize: 12, fill: '#475569' }}
                 label={{
-                  value: `Enterococci (${viewMode === 'microbial' ? 'MPN' : 'CFU'}/100ml)`,
+                  value: `Enterococci (${viewMode === 'microbial' ? 'MPN' : 'MPN'}/100ml)`,
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fontSize: 12, fill: '#0ea5e9' },
+                  style: { fontSize: 12, fill: '#0ea5e9', textAnchor: 'middle' },
                 }}
               />
               <YAxis
@@ -894,7 +894,7 @@ export default function MSTView() {
                   value: 'Rainfall 48h (mm)',
                   angle: 90,
                   position: 'insideRight',
-                  style: { fontSize: 12, fill: '#64748b' },
+                  style: { fontSize: 12, fill: '#64748b', textAnchor: 'middle' },
                 }}
               />
               <Tooltip
