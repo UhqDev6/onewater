@@ -51,9 +51,9 @@ export default function TaxonomicViewReal() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [palette, setPalette] = useState<PaletteName>('default');
   const [barWidth, setBarWidth] = useState<number>(25);
+  const [topN, setTopN] = useState<number>(10); // Top N taxa to display
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [showAllTaxa, setShowAllTaxa] = useState<boolean>(false); // Toggle for showing all taxa
   const [clickedSample, setClickedSample] = useState<string | null>(null); // For pinned tooltip
   const [pinnedTooltipData, setPinnedTooltipData] = useState<{
     sampleId: string;
@@ -134,7 +134,7 @@ export default function TaxonomicViewReal() {
     taxonomicLevel,
     taxonomyFilters,
     {
-      topN: showAllTaxa ? 200 : 50, // Limit based on user preference
+      topN: topN >= 9999 ? 200 : 50, // Limit based on user preference (use topN state)
       enableDebounce: true,          // Auto debounce 500ms
       fetchSamples: true,            // For stacked bar chart
       fetchAggregated: true,         // For summary table
@@ -175,35 +175,107 @@ export default function TaxonomicViewReal() {
   const chartData = useMemo(() => {
     if (taxonomyData.length === 0) return [];
 
-    // Group by sample_id
-    const sampleGroups = taxonomyData.reduce((acc, item) => {
-      if (!acc[item.sample_id]) {
-        acc[item.sample_id] = {
+    // Step 1: Group by sample_id and sum abundance per taxon
+    const sampleGroups: Record<string, {
+      sample_id: string;
+      observation_date: string;
+      taxa: Record<string, number>;
+      total: number;
+    }> = {};
+    
+    taxonomyData.forEach(item => {
+      if (!sampleGroups[item.sample_id]) {
+        sampleGroups[item.sample_id] = {
           sample_id: item.sample_id,
           observation_date: item.observation_date,
+          taxa: {},
+          total: 0,
         };
       }
       
       // Get taxon name for current level
       const taxonName = item[taxonomicLevel] || 'Unknown';
       
-      // Sum abundance for this taxon in this sample
-      const currentValue = acc[item.sample_id][taxonName];
-      const numericValue = typeof currentValue === 'number' ? currentValue : 0;
-      acc[item.sample_id][taxonName] = numericValue + item.abundance_value;
-      
-      return acc;
-    }, {} as Record<string, Record<string, string | number>>);
+      // Sum abundance for this taxon
+      if (!sampleGroups[item.sample_id].taxa[taxonName]) {
+        sampleGroups[item.sample_id].taxa[taxonName] = 0;
+      }
+      sampleGroups[item.sample_id].taxa[taxonName] += item.abundance_value;
+      sampleGroups[item.sample_id].total += item.abundance_value;
+    });
 
-    // Convert to array and sort
-    const samples = Object.values(sampleGroups);
+    // Step 2: Calculate total abundance per taxon across all samples
+    const taxonTotals: Record<string, number> = {};
+    Object.values(sampleGroups).forEach(sample => {
+      Object.entries(sample.taxa).forEach(([taxonName, abundance]) => {
+        if (!taxonTotals[taxonName]) {
+          taxonTotals[taxonName] = 0;
+        }
+        taxonTotals[taxonName] += abundance;
+      });
+    });
+
+    // Step 3: Get top N taxa by total abundance
+    const sortedTaxa = Object.entries(taxonTotals)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name]) => name);
     
+    const topTaxa = new Set(sortedTaxa.slice(0, topN));
+    const hasOthers = sortedTaxa.length > topN;
+
+    // Step 4: Convert abundance to percentage and group non-top taxa as "Others"
+    const samples = Object.values(sampleGroups).map(sample => {
+      const result: Record<string, string | number> = {
+        sample_id: sample.sample_id,
+        observation_date: sample.observation_date,
+      };
+      
+      let othersSum = 0;
+      
+      // Convert each taxon to percentage
+      Object.entries(sample.taxa).forEach(([taxonName, abundance]) => {
+        const percentage = sample.total > 0 ? (abundance / sample.total) * 100 : 0;
+        
+        if (topTaxa.has(taxonName)) {
+          result[taxonName] = percentage;
+        } else {
+          othersSum += percentage;
+        }
+      });
+      
+      // Add "Others" if there are taxa outside top N
+      if (hasOthers && othersSum > 0) {
+        result['Others'] = othersSum;
+      }
+      
+      return result;
+    });
+    
+    // DEBUG: Log first sample to see what's happening
+    if (samples[0]) {
+      console.log('🔍 DEBUG - First Sample (with Top N):', samples[0]);
+      const percentageSum = Object.entries(samples[0])
+        .filter(([key]) => key !== 'sample_id' && key !== 'observation_date')
+        .reduce((sum, [, value]) => sum + (value as number), 0);
+      console.log('🔍 DEBUG - Percentage Sum:', percentageSum);
+      console.log('🔍 DEBUG - Top Taxa:', Array.from(topTaxa));
+      console.log('🔍 DEBUG - Has Others:', hasOthers);
+      
+      // VALIDATION: Check if total is still 100%
+      if (Math.abs(percentageSum - 100) > 0.01) {
+        console.warn('⚠️ WARNING: Percentage sum is not 100%!', percentageSum);
+      } else {
+        console.log('✅ VALIDATION: Percentage sum is correct (100%)');
+      }
+    }
+    
+    // Step 5: Sort
     if (sortOrder === 'asc') {
       return samples.sort((a, b) => String(a.sample_id).localeCompare(String(b.sample_id)));
     } else {
       return samples.sort((a, b) => String(b.sample_id).localeCompare(String(a.sample_id)));
     }
-  }, [taxonomyData, taxonomicLevel, sortOrder]);
+  }, [taxonomyData, taxonomicLevel, sortOrder, topN]);
 
   // Show loading indicator when taxonomic level or sort order changes
   useEffect(() => {
@@ -231,9 +303,9 @@ export default function TaxonomicViewReal() {
   }, [pinnedTooltipData]);
 
   // Get unique taxa for current level (for stacked bars)
-  // Filter out taxa with very low total abundance (< 0.1% of total)
+  // Get unique taxa for current level (for stacked bars)
+  // Use Top N logic to match chartData
   const uniqueTaxa = useMemo(() => {
-    const taxa = new Set<string>();
     const taxaAbundance: Record<string, number> = {};
     
     // Calculate total abundance per taxon
@@ -245,43 +317,37 @@ export default function TaxonomicViewReal() {
       taxaAbundance[taxonName] += item.abundance_value;
     });
     
-    // Calculate total abundance across all taxa
-    const totalAbundance = Object.values(taxaAbundance).reduce((sum, val) => sum + val, 0);
+    // Sort by abundance (descending)
+    const sortedTaxa = Object.entries(taxaAbundance)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name]) => name);
     
-    // If showAllTaxa is true, include all taxa
-    if (showAllTaxa) {
-      Object.keys(taxaAbundance).forEach(taxon => taxa.add(taxon));
-      
-      // Sort by abundance (descending)
-      return Array.from(taxa).sort((a, b) => {
-        return (taxaAbundance[b] || 0) - (taxaAbundance[a] || 0);
-      });
+    // Get top N taxa
+    const topTaxa = sortedTaxa.slice(0, topN);
+    
+    // Add "Others" if there are more taxa than topN
+    if (sortedTaxa.length > topN) {
+      return [...topTaxa, 'Others'];
     }
     
-    // Otherwise, filter by threshold
-    // Only include taxa that represent at least 0.1% of total abundance
-    const minThreshold = totalAbundance * 0.001; // 0.1% threshold
-    
-    Object.entries(taxaAbundance).forEach(([taxon, abundance]) => {
-      if (abundance > minThreshold) {
-        taxa.add(taxon);
-      }
-    });
-    
-    // Sort by abundance (descending) and limit to top 50 taxa for performance
-    const sortedTaxa = Array.from(taxa).sort((a, b) => {
-      return (taxaAbundance[b] || 0) - (taxaAbundance[a] || 0);
-    });
-    
-    return sortedTaxa.slice(0, 50); // Limit to top 50 most abundant taxa
-  }, [taxonomyData, taxonomicLevel, showAllTaxa]);
+    return topTaxa;
+  }, [taxonomyData, taxonomicLevel, topN]);
 
   // Color mapping for taxa
   const colorByTaxon = useMemo(() => {
     const activePalette = COLOR_PALETTES[palette];
-    return Object.fromEntries(
-      uniqueTaxa.map((taxon, index) => [taxon, activePalette[index % activePalette.length]])
-    );
+    const colors: Record<string, string> = {};
+    
+    uniqueTaxa.forEach((taxon, index) => {
+      // Use gray color for "Others"
+      if (taxon === 'Others') {
+        colors[taxon] = '#9ca3af'; // gray-400
+      } else {
+        colors[taxon] = activePalette[index % activePalette.length];
+      }
+    });
+    
+    return colors;
   }, [palette, uniqueTaxa]);
 
   // Pre-compute taxonomic paths for fast lookup during hover
@@ -623,6 +689,23 @@ export default function TaxonomicViewReal() {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
+              Show Top Taxa
+            </label>
+            <select
+              value={topN}
+              onChange={(e) => setTopN(Number(e.target.value))}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={5}>Top 5 + Others</option>
+              <option value={10}>Top 10 + Others</option>
+              <option value={15}>Top 15 + Others</option>
+              <option value={20}>Top 20 + Others</option>
+              <option value={9999}>Show All</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
               Color Palette
             </label>
             <select
@@ -655,8 +738,14 @@ export default function TaxonomicViewReal() {
             <input
               type="checkbox"
               id="showAllTaxa"
-              checked={showAllTaxa}
-              onChange={(e) => setShowAllTaxa(e.target.checked)}
+              checked={topN >= 9999}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setTopN(9999); // Show all
+                } else {
+                  setTopN(10); // Back to default Top 10
+                }
+              }}
               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <label htmlFor="showAllTaxa" className="text-xs font-medium text-gray-600 cursor-pointer">
@@ -740,8 +829,23 @@ export default function TaxonomicViewReal() {
                 textAnchor="end"
                 height={100}
                 interval={0}
+                tick={{fontSize: 9}}
               />
-              <YAxis label={{ value: 'Abundance', angle: -90, position: 'insideLeft' }} />
+              <YAxis 
+                domain={[0, 100]}
+                tickFormatter={(value) => `${Math.round(value)}%`}
+                label={{ 
+                  value: 'Relative Abundance (%)', 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  offset: 0,           // Memberi jarak dari garis sumbu
+                  style: { 
+                    textAnchor: 'middle', 
+                    fontSize: 14, 
+                    fill: '#333'
+                  }
+                }}
+              />
               <Tooltip 
                 content={({ active, payload, label }) => {
                   // Don't show if pinned tooltip is active
@@ -924,9 +1028,9 @@ export default function TaxonomicViewReal() {
               Aggregated Summary by {LEVEL_LABELS[taxonomicLevel]}
             </h3>
             <p className="text-xs text-gray-500 mt-1">
-              {showAllTaxa 
+              {topN >= 9999
                 ? `Showing all ${uniqueTaxa.length} taxa (complete dataset)`
-                : `Showing top ${uniqueTaxa.length} most abundant taxa (≥0.1% of total abundance)`
+                : `Showing top ${topN} most abundant taxa${uniqueTaxa.length > topN ? ' + Others' : ''}`
               }
             </p>
           </div>
@@ -958,9 +1062,9 @@ export default function TaxonomicViewReal() {
                     uniqueTaxaCount: uniqueTaxa.length 
                   });
                   
-                  // Filter based on showAllTaxa setting
-                  const filteredAggregated = showAllTaxa 
-                    ? aggregated // Show all if toggle is on
+                  // Filter based on topN setting
+                  const filteredAggregated = topN >= 9999
+                    ? aggregated // Show all if topN is set to show all
                     : aggregated.filter(item => item.percentage > 0.1);
                   
                   return filteredAggregated.length > 0 ? (
