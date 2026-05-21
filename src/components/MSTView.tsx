@@ -884,18 +884,10 @@ export default function MSTView() {
             <ComposedChart
               data={sortedData.map(item => {
                 const row = rawData.find(d => d.sampling_date === item.date);
-                // For log scale: convert 0 to null (won't be plotted) or use minimum value
-                const enterococciValue = item.enterococci > 0 ? item.enterococci : null;
                 
-                // DEBUG: Log first few samples to check data
-                if (sortedData.indexOf(item) < 3) {
-                  console.log('🔍 Enterococci Data:', {
-                    sample: row?.sample_id,
-                    enterococci: item.enterococci,
-                    enterococciValue,
-                    rainfall: item.rainfall,
-                  });
-                }
+                // STRICT LOGARITHMIC SCALE: Convert 0 to 1 (log scale cannot handle 0)
+                // This ensures all data points are visible on the logarithmic scale
+                const enterococciValue = item.enterococci === 0 ? 1 : item.enterococci;
                 
                 return {
                   label: row?.sample_id || item.date,
@@ -904,7 +896,7 @@ export default function MSTView() {
                   date: item.date,
                 };
               })}
-              margin={{ top: 20, right: 110, left: 70, bottom: 60 }}
+              margin={{ top: 20, right: 110, left: 100, bottom: 60 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
@@ -917,16 +909,11 @@ export default function MSTView() {
               <YAxis
                 yAxisId="left"
                 scale="log"
-                domain={[1, 'dataMax']}
-                width={80}
+                domain={[1, 100000]}
+                ticks={[1, 10, 100, 1000, 10000, 100000]}
+                width={90}
                 tick={{ fontSize: 12, fill: '#475569' }}
-                tickFormatter={(value) => {
-                  // Format as clean integers for log scale
-                  if (value >= 1000) return `${(value / 1000)}k`;
-                  if (value >= 100) return value.toString();
-                  if (value >= 10) return value.toString();
-                  return value.toString();
-                }}
+                tickFormatter={(value) => value.toLocaleString()}
                 label={{
                   value: 'Enterococci (MPN/100 mL)',
                   angle: -90,
@@ -964,7 +951,7 @@ export default function MSTView() {
                               <span className="text-slate-700">{entry.name}</span>
                             </div>
                             <span className="font-medium text-slate-900">
-                              {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
+                              {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
                               {entry.dataKey === 'rainfall' ? ' mm' : ' MPN/100 mL'}
                             </span>
                           </div>
@@ -1000,9 +987,9 @@ export default function MSTView() {
           <div className="mt-3 text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded p-3">
             <p className="font-semibold text-blue-900 mb-1">💡 Interpretation Guide:</p>
             <p className="text-blue-800">
-              This chart shows the relationship between rainfall and enterococci levels. 
-              Higher rainfall (bars) often correlates with increased enterococci (line), 
-              indicating runoff-related contamination from land-based sources.
+              This chart uses a <span className="font-semibold">logarithmic scale</span> to display enterococci levels, 
+              allowing both low and high values to be visible. Higher rainfall (bars) often correlates with increased 
+              enterococci (line), indicating runoff-related contamination from land-based sources.
             </p>
           </div>
         </div>
