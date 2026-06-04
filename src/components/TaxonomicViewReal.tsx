@@ -171,6 +171,96 @@ export default function TaxonomicViewReal() {
     genus: genusOptions.values,
   }), [domainOptions.values, phylumOptions.values, classOptions.values, orderOptions.values, familyOptions.values, genusOptions.values]);
 
+  // Download CSV function - exports filtered data
+  const handleDownloadCsv = () => {
+    if (chartData.length === 0) {
+      alert('No data available to download');
+      return;
+    }
+
+    // Get all taxa columns (exclude sample_id and observation_date)
+    const taxaColumns = Object.keys(chartData[0]).filter(
+      key => key !== 'sample_id' && key !== 'observation_date'
+    );
+
+    // Build CSV header
+    const headers = ['Sample ID', 'Observation Date', ...taxaColumns.map(taxon => `${taxon} (%)`)];
+    const csvLines = [headers.join(',')];
+
+    // Build CSV rows
+    chartData.forEach(row => {
+      const values = [
+        `"${row.sample_id}"`,
+        `"${row.observation_date}"`,
+        ...taxaColumns.map(taxon => {
+          const value = row[taxon];
+          return typeof value === 'number' ? value.toFixed(2) : '0.00';
+        })
+      ];
+      csvLines.push(values.join(','));
+    });
+
+    // Create blob and download
+    const csvContent = csvLines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Generate filename with filters info
+    const filterInfo = selectedEnvironment || 'all-locations';
+    const levelInfo = LEVEL_LABELS[taxonomicLevel].replace(/\s+/g, '-');
+    const dateInfo = `${dateRange.startDate}_to_${dateRange.endDate}`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', `taxonomy-${filterInfo}-${levelInfo}-${dateInfo}.csv`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download SVG function - exports chart visualization
+  const handleDownloadSvg = () => {
+    // Find the SVG element in the ResponsiveContainer
+    const svgElement = document.querySelector('.recharts-wrapper svg');
+    
+    if (!svgElement) {
+      alert('Chart not found. Please wait for the chart to load.');
+      return;
+    }
+
+    // Clone the SVG to avoid modifying the original
+    const clonedSvg = svgElement.cloneNode(true) as SVGElement;
+    
+    // Add white background
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('width', '100%');
+    rect.setAttribute('height', '100%');
+    rect.setAttribute('fill', 'white');
+    clonedSvg.insertBefore(rect, clonedSvg.firstChild);
+    
+    // Serialize SVG to string
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(clonedSvg);
+    
+    // Create blob and download
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Generate filename with filters info
+    const filterInfo = selectedEnvironment || 'all-locations';
+    const levelInfo = LEVEL_LABELS[taxonomicLevel].replace(/\s+/g, '-');
+    const dateInfo = `${dateRange.startDate}_to_${dateRange.endDate}`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', `taxonomy-chart-${filterInfo}-${levelInfo}-${dateInfo}.svg`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Prepare chart data - grouped by sample with stacked bars
   const chartData = useMemo(() => {
     if (taxonomyData.length === 0) return [];
@@ -759,14 +849,16 @@ export default function TaxonomicViewReal() {
 
         <div className="flex gap-2">
           <button
-            onClick={() => {/* Download CSV */}}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            onClick={handleDownloadCsv}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            title="Download filtered data as CSV"
           >
             Download CSV
           </button>
           <button
-            onClick={() => {/* Download SVG */}}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            onClick={handleDownloadSvg}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            title="Download chart as SVG"
           >
             Download SVG
           </button>

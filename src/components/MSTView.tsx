@@ -393,34 +393,63 @@ export default function MSTView() {
     return isBeach ? 'Marine' : 'Freshwater';
   }, [selectedLocation, locations]);
 
-  // Download functions
+  // Download functions - Enhanced with complete data
   const handleDownloadCsv = () => {
-    if (chartData.length === 0) return;
+    if (chartData.length === 0) {
+      alert('No data available to download');
+      return;
+    }
 
-    const headers = ['sample_id', 'date', ...sourceCategories.map(s => s.key)];
-    const csvLines = [
-      headers.join(','),
-      ...chartData
-        .filter((row): row is Record<string, string | number> => row !== null)
-        .map((row) =>
-          headers
-            .map((header) => {
-              // Map 'sample_id' to 'label' in the row data
-              const key = header === 'sample_id' ? 'label' : header;
-              const value = row[key] ?? '';
-              return `"${String(value).replace(/"/g, '""')}"`;
-            })
-            .join(',')
-        ),
+    // Build comprehensive CSV with all relevant MST data
+    // Header: Sample ID, Date, Site, Enterococci, Rainfall, then all source contributions
+    const sourceHeaders = sourceCategories.map(s => `${s.label} (%)`);
+    const headers = [
+      'Sample ID',
+      'Sampling Date', 
+      'Site',
+      viewMode === 'microbial' ? 'Enterococci (MPN/100mL)' : 'Enterococci Value',
+      'Rainfall 48h (mm)',
+      ...sourceHeaders
     ];
+    
+    const csvLines = [headers.join(',')];
+
+    // Build CSV rows with complete data
+    chartData
+      .filter((row): row is Record<string, string | number> => row !== null)
+      .forEach((row) => {
+        const rawRow = rawData.find(d => d.sample_id === row.label);
+        if (!rawRow) return;
+
+        const values = [
+          `"${row.label}"`, // Sample ID
+          `"${row.date}"`, // Sampling Date
+          `"${rawRow.site}"`, // Site
+          viewMode === 'microbial' 
+            ? ('enterococci_mpn_100ml' in rawRow ? rawRow.enterococci_mpn_100ml : 0)
+            : ('enterococci_value' in rawRow ? rawRow.enterococci_value : 0), // Enterococci
+          rawRow.rainfall_48h_mm || 0, // Rainfall
+          ...sourceCategories.map(s => {
+            const value = row[s.key];
+            return typeof value === 'number' ? value.toFixed(2) : '0.00';
+          })
+        ];
+        
+        csvLines.push(values.join(','));
+      });
 
     const csvContent = csvLines.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
 
+    // Enhanced filename with location and filter info
+    const locationName = locations.find(loc => loc.id === selectedLocation)?.name || 'unknown';
+    const safeLocationName = locationName.replace(/\s+/g, '-');
+    const dateInfo = `${dateRange.startDate}_to_${dateRange.endDate}`;
+    
     anchor.href = url;
-    anchor.setAttribute('download', `mst-data-${viewMode}-${dateRange.startDate}-to-${dateRange.endDate}.csv`);
+    anchor.setAttribute('download', `mst-${viewMode}-${safeLocationName}-${dateInfo}.csv`);
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
@@ -428,22 +457,266 @@ export default function MSTView() {
   };
 
   const handleDownloadSvg = () => {
-    const svgElement = document.querySelector('#mst-chart svg');
-    if (!svgElement) {
+    const chartContainer = document.querySelector('#mst-chart');
+    
+    if (!chartContainer) {
+      alert('Chart container not found. Please wait for the chart to load.');
       return;
     }
 
-    const serializer = new XMLSerializer();
-    const svgText = serializer.serializeToString(svgElement);
-    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
+    // First, always get Environmental Context chart (shared for both types)
+    const envChartContainer = document.querySelector('#mst-env-chart');
+    let envChartSvg: Element | null = null;
+    let envChartHeight = 0;
+    let envChartWidth = 0;
+    
+    if (envChartContainer) {
+      const allSvgsInEnvChart = envChartContainer.querySelectorAll('svg.recharts-surface');
+      console.log('Found SVG elements in env chart:', allSvgsInEnvChart.length);
+      
+      // Find the largest SVG in environmental context chart
+      allSvgsInEnvChart.forEach((svg, index) => {
+        const width = svg.getAttribute('width');
+        const height = svg.getAttribute('height');
+        console.log(`Env SVG ${index}:`, { width, height, viewBox: svg.getAttribute('viewBox') });
+        
+        if (width && (width.includes('%') || parseFloat(width) > 100)) {
+          envChartSvg = svg;
+          console.log(`Selected env SVG ${index}`);
+        }
+      });
+      
+      // Fallback by computed size
+      if (!envChartSvg) {
+        allSvgsInEnvChart.forEach((svg, index) => {
+          const bbox = svg.getBoundingClientRect();
+          console.log(`Env SVG ${index} computed size:`, { width: bbox.width, height: bbox.height });
+          
+          if (bbox.width > 100 && bbox.height > 100) {
+            envChartSvg = svg;
+            console.log(`Selected env SVG ${index} by computed size`);
+          }
+        });
+      }
+      
+      if (envChartSvg) {
+        const envChartBBox = (envChartSvg as SVGElement).getBoundingClientRect();
+        envChartHeight = envChartBBox.height;
+        envChartWidth = envChartBBox.width;
+      }
+    }
 
-    anchor.href = url;
-    anchor.setAttribute('download', `mst-chart-${viewMode}.svg`);
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
+    let svgToDownload: SVGElement;
+
+    if (chartType === 'pie') {
+      // For pie chart: Collect all individual pie chart containers (with labels) + Environmental Context
+      const allPieContainers = chartContainer.querySelectorAll('.flex-shrink-0');
+      
+      if (!allPieContainers || allPieContainers.length === 0) {
+        alert('Pie charts not found. Please make sure the charts have finished rendering.');
+        return;
+      }
+
+      // Calculate dimensions for pie charts grid
+      const pieContainerWidth = Math.min(allPieContainers.length * 280, 1400); // Max 5 charts per row
+      const chartsPerRow = Math.min(allPieContainers.length, 5);
+      const rows = Math.ceil(allPieContainers.length / chartsPerRow);
+      const pieContainerHeight = rows * 300; // Increased height for labels
+      
+      // Combined dimensions (pie charts + environmental context)
+      const combinedWidth = Math.max(pieContainerWidth, envChartWidth);
+      const combinedHeight = pieContainerHeight + envChartHeight + 60; // 60px spacing between sections
+      
+      const combinedSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      combinedSvg.setAttribute('width', combinedWidth.toString());
+      combinedSvg.setAttribute('height', combinedHeight.toString());
+      combinedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      
+      // Add white background
+      const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bgRect.setAttribute('width', '100%');
+      bgRect.setAttribute('height', '100%');
+      bgRect.setAttribute('fill', 'white');
+      combinedSvg.appendChild(bgRect);
+      
+      // Clone and position each pie chart with its labels
+      allPieContainers.forEach((container, index) => {
+        const col = index % chartsPerRow;
+        const row = Math.floor(index / chartsPerRow);
+        const x = col * 280;
+        const y = row * 300;
+        
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.setAttribute('transform', `translate(${x}, ${y})`);
+        
+        // Get sample ID and date from the container
+        const sampleIdElement = container.querySelector('.text-xs.font-semibold.text-slate-900');
+        const dateElement = container.querySelector('.text-xs.text-slate-500');
+        const sampleId = sampleIdElement?.textContent || '';
+        const date = dateElement?.textContent || '';
+        
+        // Add sample ID text
+        const sampleIdText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        sampleIdText.setAttribute('x', '130');
+        sampleIdText.setAttribute('y', '15');
+        sampleIdText.setAttribute('text-anchor', 'middle');
+        sampleIdText.setAttribute('font-size', '12');
+        sampleIdText.setAttribute('font-weight', 'bold');
+        sampleIdText.setAttribute('fill', '#0f172a');
+        sampleIdText.textContent = sampleId;
+        group.appendChild(sampleIdText);
+        
+        // Add date text
+        const dateText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        dateText.setAttribute('x', '130');
+        dateText.setAttribute('y', '30');
+        dateText.setAttribute('text-anchor', 'middle');
+        dateText.setAttribute('font-size', '10');
+        dateText.setAttribute('fill', '#64748b');
+        dateText.textContent = date;
+        group.appendChild(dateText);
+        
+        // Clone the SVG chart content
+        const svgElement = container.querySelector('.recharts-wrapper svg');
+        if (svgElement) {
+          const chartGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          chartGroup.setAttribute('transform', 'translate(0, 35)');
+          
+          const clonedContent = svgElement.cloneNode(true) as SVGElement;
+          Array.from(clonedContent.children).forEach(child => {
+            chartGroup.appendChild(child.cloneNode(true));
+          });
+          
+          group.appendChild(chartGroup);
+        }
+        
+        combinedSvg.appendChild(group);
+      });
+      
+      // Add environmental context chart below pie charts (if exists)
+      if (envChartSvg) {
+        const envGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        envGroup.setAttribute('transform', `translate(0, ${pieContainerHeight + 60})`);
+        
+        const clonedEnvSvg = (envChartSvg as SVGElement).cloneNode(true) as SVGElement;
+        Array.from(clonedEnvSvg.children).forEach(child => {
+          envGroup.appendChild(child.cloneNode(true));
+        });
+        combinedSvg.appendChild(envGroup);
+      }
+      
+      svgToDownload = combinedSvg;
+      
+    } else {
+      // For bar chart: Combine Source Contribution + Environmental Context charts
+      
+      // 1. Get Source Contribution chart
+      const allSvgsInMainChart = chartContainer.querySelectorAll('svg.recharts-surface');
+      
+      console.log('Found SVG elements in main chart:', allSvgsInMainChart.length);
+      
+      let sourceChartSvg: Element | null = null;
+      
+      // Find the largest SVG (the actual chart, not icons)
+      allSvgsInMainChart.forEach((svg, index) => {
+        const width = svg.getAttribute('width');
+        const height = svg.getAttribute('height');
+        console.log(`Main SVG ${index}:`, { width, height, viewBox: svg.getAttribute('viewBox') });
+        
+        // The main chart should have numeric width > 100 or percentage
+        if (width && (width.includes('%') || parseFloat(width) > 100)) {
+          sourceChartSvg = svg;
+          console.log(`Selected main SVG ${index} as source contribution chart`);
+        }
+      });
+      
+      // If no large SVG found, try alternative: get the SVG by computed size
+      if (!sourceChartSvg) {
+        allSvgsInMainChart.forEach((svg, index) => {
+          const bbox = svg.getBoundingClientRect();
+          console.log(`Main SVG ${index} computed size:`, { width: bbox.width, height: bbox.height });
+          
+          if (bbox.width > 100 && bbox.height > 100) {
+            sourceChartSvg = svg;
+            console.log(`Selected main SVG ${index} by computed size`);
+          }
+        });
+      }
+      
+      if (!sourceChartSvg) {
+        alert('Source Contribution chart not found. Please make sure the chart has finished rendering.');
+        console.error('No large SVG found in main chart. Total SVGs:', allSvgsInMainChart.length);
+        return;
+      }
+
+      // 2. Combine both charts into one SVG
+      const sourceChartBBox = (sourceChartSvg as SVGElement).getBoundingClientRect();
+      const sourceChartHeight = sourceChartBBox.height;
+      const sourceChartWidth = sourceChartBBox.width;
+      
+      const combinedChartWidth = Math.max(sourceChartWidth, envChartWidth);
+      const combinedHeight = sourceChartHeight + envChartHeight + 40; // 40px spacing
+      
+      console.log('Combined dimensions:', { width: combinedChartWidth, height: combinedHeight });
+      
+      // Create combined SVG
+      const combinedSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      combinedSvg.setAttribute('width', combinedChartWidth.toString());
+      combinedSvg.setAttribute('height', combinedHeight.toString());
+      combinedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      
+      // Add white background
+      const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bgRect.setAttribute('width', '100%');
+      bgRect.setAttribute('height', '100%');
+      bgRect.setAttribute('fill', 'white');
+      combinedSvg.appendChild(bgRect);
+      
+      // Add source contribution chart at top
+      const sourceGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      sourceGroup.setAttribute('transform', 'translate(0, 0)');
+      
+      const clonedSourceSvg = (sourceChartSvg as SVGElement).cloneNode(true) as SVGElement;
+      Array.from(clonedSourceSvg.children).forEach(child => {
+        sourceGroup.appendChild(child.cloneNode(true));
+      });
+      combinedSvg.appendChild(sourceGroup);
+      
+      // Add environmental context chart below (if exists)
+      if (envChartSvg) {
+        const envGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        envGroup.setAttribute('transform', `translate(0, ${sourceChartHeight + 40})`);
+        
+        const clonedEnvSvg = (envChartSvg as SVGElement).cloneNode(true) as SVGElement;
+        Array.from(clonedEnvSvg.children).forEach(child => {
+          envGroup.appendChild(child.cloneNode(true));
+        });
+        combinedSvg.appendChild(envGroup);
+      }
+      
+      svgToDownload = combinedSvg;
+    }
+    
+    // Serialize SVG to string
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svgToDownload);
+    
+    // Create blob and download
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Generate filename with filters info
+    const locationName = locations.find(loc => loc.id === selectedLocation)?.name || 'unknown';
+    const safeLocationName = locationName.replace(/\s+/g, '-');
+    const dateInfo = `${dateRange.startDate}_to_${dateRange.endDate}`;
+    const chartTypeLabel = chartType === 'bar' ? 'bar' : 'pie';
+    link.setAttribute('href', url);
+    link.setAttribute('download', `mst-${chartTypeLabel}-${viewMode}-${safeLocationName}-${dateInfo}.svg`);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
@@ -644,6 +917,7 @@ export default function MSTView() {
               type="button"
               onClick={handleDownloadCsv}
               className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+              title="Download filtered MST data with environmental context (CSV format)"
             >
               Download CSV
             </button>
@@ -651,6 +925,7 @@ export default function MSTView() {
               type="button"
               onClick={handleDownloadSvg}
               className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+              title="Download current chart visualization (SVG format)"
             >
               Download SVG
             </button>
@@ -878,7 +1153,7 @@ export default function MSTView() {
 
       {/* Environmental Context Chart (Enterococci + Rainfall) */}
       {rawData.length > 0 && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div id="mst-env-chart" className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Environmental Context (Enterococci & Rainfall)</h3>
           <ResponsiveContainer width="100%" height={350}>
             <ComposedChart
