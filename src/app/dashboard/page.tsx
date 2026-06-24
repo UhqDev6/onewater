@@ -12,6 +12,7 @@ import MonitoringLayout from '@/components/dashboard/MonitoringLayout';
 import DataPanel from '@/components/dashboard/DataPanel';
 import TaxonomicView from '@/components/TaxonomicViewReal';
 import MSTView from '@/components/MSTView';
+import WaterQualityView from '@/components/WaterQualityView';
 import { filterWaterQualityData } from '@/lib/utils/dataHelpers';
 import { fetchHybridBeachwatchDataSafe } from '@/lib/api/hybridBeachwatch';
 
@@ -62,7 +63,7 @@ function DashboardContent() {
   const viewParam = searchParams.get('view');
   
   const [filters, setFilters] = useState<WaterQualityFilters>({});
-  const [viewMode, setViewMode] = useState<'grid' | 'map' | 'taxonomic' | 'mst'>('map');
+  const [viewMode, setViewMode] = useState<'grid' | 'map' | 'taxonomic' | 'mst' | 'waterquality'>('map');
   const [selectedLocation, setSelectedLocation] = useState<string | undefined>();
   const [beachData, setBeachData] = useState<NormalizedWaterQualityData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +84,7 @@ function DashboardContent() {
 
   // Set initial view mode from URL parameter
   useEffect(() => {
-    if (viewParam === 'taxonomic' || viewParam === 'grid' || viewParam === 'map' || viewParam === 'mst') {
+    if (viewParam === 'taxonomic' || viewParam === 'grid' || viewParam === 'map' || viewParam === 'mst' || viewParam === 'waterquality') {
       setViewMode(viewParam);
     }
   }, [viewParam]);
@@ -265,7 +266,7 @@ function DashboardContent() {
             <h2 className="text-xl font-semibold text-gray-900">
               Locations ({viewMode === 'grid' ? gridFilteredData.length : filteredData.length})
             </h2>
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -285,6 +286,16 @@ function DashboardContent() {
                 }`}
               >
                 Map View
+              </button>
+              <button
+                onClick={() => setViewMode('waterquality')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  viewMode === 'waterquality'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Water Quality
               </button>
               <button
                 onClick={() => setViewMode('taxonomic')}
@@ -313,6 +324,8 @@ function DashboardContent() {
             <TaxonomicViewWithSuspense />
           ) : viewMode === 'mst' ? (
             <MSTViewWithSuspense />
+          ) : viewMode === 'waterquality' ? (
+            <WaterQualityView initialSiteId={selectedLocation} />
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
               <div className="lg:col-span-1">
