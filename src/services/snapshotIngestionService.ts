@@ -23,6 +23,7 @@ export interface BeachwatchSnapshot {
   pollution_forecast: string | null;
   pollution_forecast_timestamp: string | null;
   latest_result_observation_date: string | null;
+  snapshot_date: string; // YYYY-MM-DD format - the date we pulled this snapshot
 }
 
 /**
@@ -102,6 +103,9 @@ export async function ingestBeachwatchSnapshots(): Promise<{
 
     // Step 2: Map GeoJSON features to database schema
     const snapshots: BeachwatchSnapshot[] = geoJsonData.features.map((feature) => {
+      // Get current date in YYYY-MM-DD format for snapshot_date
+      const today = new Date().toISOString().split('T')[0];
+      
       return {
         site_id: feature.properties.id,
         site_name: feature.properties.siteName,
@@ -112,19 +116,20 @@ export async function ingestBeachwatchSnapshots(): Promise<{
         pollution_forecast: feature.properties.pollutionForecast,
         pollution_forecast_timestamp: feature.properties.pollutionForecastTimeStamp,
         latest_result_observation_date: feature.properties.latestResultObservationDate,
+        snapshot_date: today, // Set to today's date
       };
     });
 
     // Step 3: Upsert data to Supabase
-    // Using upsert with conflict resolution on (site_id, latest_result_observation_date)
-    // This prevents duplicate entries for the same site on the same observation date
+    // Using upsert with onConflict on (site_id, snapshot_date)
+    // This ensures one snapshot per site per day
+    // If we pull multiple times in same day, it will UPDATE the existing record
     console.log(`[Snapshot Ingestion] Upserting ${snapshots.length} records to database`);
 
     const { error } = await supabaseAdmin
       .from('beachwatch_snapshots')
       .upsert(snapshots, {
-        onConflict: 'site_id,latest_result_observation_date',
-        // ignoreDuplicates: false means it will UPDATE existing records instead of ignoring them
+        onConflict: 'site_id,snapshot_date',
       });
 
     if (error) {
