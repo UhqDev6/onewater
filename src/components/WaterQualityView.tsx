@@ -190,9 +190,6 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                       }`}
                     >
                       <div className="font-medium truncate">{site.site_name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {site.data_points} data point{site.data_points !== 1 ? 's' : ''}
-                      </div>
                     </button>
                   ))
                 ) : (
