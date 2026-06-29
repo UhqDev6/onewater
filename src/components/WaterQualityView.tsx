@@ -1,6 +1,6 @@
 /**
  * Water Quality View Component
- * Displays historical water quality trends with line chart
+ * Displays historical water quality trends with smart adaptive line coloring
  */
 
 'use client';
@@ -12,8 +12,8 @@ import {
   type WaterQualityHistoryDataPoint,
 } from '@/services/waterQualityHistoryService';
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -40,7 +40,6 @@ interface CustomTooltipProps {
   }>;
 }
 
-// Custom tooltip component - defined outside of render
 const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -95,8 +94,6 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
         setError(fetchError);
       } else {
         setSites(data);
-        
-        // Auto-select first site if no initial site
         if (!initialSiteId && data.length > 0) {
           setSelectedSite(data[0].site_id);
         }
@@ -104,7 +101,6 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
       
       setLoading(false);
     }
-
     loadSites();
   }, [initialSiteId]);
 
@@ -129,48 +125,70 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
       
       setLoadingHistory(false);
     }
-
     loadHistory();
   }, [selectedSite]);
 
-  // Filter sites based on search
+  // Jitter mikro agar area chart tetap render mulus di segala kondisi browser
+  const processedChartData = useMemo(() => {
+    return historyData.map((item, index) => ({
+      ...item,
+      qualityValue: item.qualityValue + (index % 2 === 0 ? 0.0001 : 0),
+    }));
+  }, [historyData]);
+
+  // 🔥 LOGIKA BARU: Deteksi apakah data kualitas air flat (sama semua)
+  const isFlatLine = useMemo(() => {
+    if (historyData.length <= 1) return true;
+    const firstQuality = historyData[0]?.quality;
+    return historyData.every((item) => item.quality === firstQuality);
+  }, [historyData]);
+
+  // 🔥 LOGIKA BARU: Tentukan warna stroke garis secara pintar
+  const adaptiveStrokeColor = useMemo(() => {
+    if (!isFlatLine || historyData.length === 0) {
+      // Jika datanya naik turun (melengkung), gunakan gradien vertikal bawaan
+      return 'url(#waterQualityLineGradient)';
+    }
+    
+    // Jika datanya FLAT, gunakan warna solid sesuai dengan status kualitas airnya
+    const currentQuality = historyData[0].quality;
+    switch (currentQuality) {
+      case 'good': return '#3b82f6';  // Solid Blue
+      case 'fair': return '#eab308';  // Solid Yellow
+      case 'poor': return '#f97316';  // Solid Orange
+      case 'bad': return '#ef4444';   // Solid Red
+      default: return '#6b7280';
+    }
+  }, [isFlatLine, historyData]);
+
   const filteredSites = sites.filter((site) =>
-    site.site_name.toLowerCase().includes(searchTerm.toLowerCase())
+    site?.site_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Quality level labels for Y-axis (highest = best)
   const qualityLabels = useMemo(() => ['', 'Bad', 'Poor', 'Fair', 'Good'], []);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Water Quality History
-        </h2>
-        <p className="text-gray-600">
-          View historical water quality trends over time
-        </p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Water Quality History</h2>
+        <p className="text-gray-600">View historical water quality trends over time</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Panel: Site Selection */}
+        {/* Left Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <h3 className="font-semibold text-gray-900 mb-3">Select Location</h3>
-            
-            {/* Search */}
             <div className="mb-4">
               <input
                 type="text"
                 placeholder="Search beaches..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            {/* Sites List */}
             {loading ? (
               <div className="text-center py-8">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
@@ -202,7 +220,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
           </div>
         </div>
 
-        {/* Right Panel: Chart */}
+        {/* Right Panel (Chart) */}
         <div className="lg:col-span-3">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             {loadingHistory ? (
@@ -215,32 +233,18 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
             ) : error ? (
               <div className="flex items-center justify-center py-32">
                 <div className="text-center">
-                  <svg className="mx-auto h-12 w-12 text-red-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
                   <p className="text-gray-600 font-medium mb-1">Error Loading Data</p>
                   <p className="text-sm text-gray-500">{error}</p>
                 </div>
               </div>
             ) : historyData.length === 0 ? (
               <div className="flex items-center justify-center py-32">
-                <div className="text-center">
-                  <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <p className="text-gray-600 font-medium mb-1">No Data Available</p>
-                  <p className="text-sm text-gray-500">
-                    {selectedSite ? 'No historical data for this location yet' : 'Select a location to view history'}
-                  </p>
-                </div>
+                <p className="text-gray-600 font-medium">No Data Available</p>
               </div>
             ) : (
               <>
-                {/* Chart Header */}
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    {siteName}
-                  </h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{siteName}</h3>
                   <p className="text-sm text-gray-600">
                     Showing {historyData.length} data points from{' '}
                     {new Date(historyData[0].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })} to{' '}
@@ -248,12 +252,27 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                   </p>
                 </div>
 
-                {/* Line Chart */}
                 <ResponsiveContainer width="100%" height={400}>
-                  <LineChart
-                    data={historyData}
+                  <AreaChart
+                    data={processedChartData}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
+                    <defs>
+                      <linearGradient id="waterQualityLineGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" />
+                        <stop offset="35%" stopColor="#eab308" />
+                        <stop offset="65%" stopColor="#f97316" />
+                        <stop offset="95%" stopColor="#ef4444" />
+                      </linearGradient>
+
+                      <linearGradient id="waterQualityAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
+                        <stop offset="35%" stopColor="#eab308" stopOpacity={0.2} />
+                        <stop offset="65%" stopColor="#f97316" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="date"
@@ -283,10 +302,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                             { color: '#ef4444', label: 'Bad' },
                           ].map((item) => (
                             <div key={item.label} className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: item.color }}
-                              />
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                               <span className="text-sm text-gray-600">{item.label}</span>
                             </div>
                           ))}
@@ -294,17 +310,16 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                       )}
                     />
                     
-                    {/* Reference lines for quality levels */}
                     <ReferenceLine y={1.5} stroke="#e5e7eb" strokeDasharray="3 3" />
                     <ReferenceLine y={2.5} stroke="#e5e7eb" strokeDasharray="3 3" />
                     <ReferenceLine y={3.5} stroke="#e5e7eb" strokeDasharray="3 3" />
                     
-                    {/* Main line */}
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="qualityValue"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
+                      stroke={adaptiveStrokeColor} // 💡 Menggunakan warna adaptif pintar hasil kalkulasi di atas
+                      fill="url(#waterQualityAreaGradient)"
+                      strokeWidth={2}
                       dot={(props: DotProps) => {
                         const { cx, cy, payload } = props;
                         if (!cx || !cy || !payload) return null;
@@ -317,22 +332,15 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                           '#6b7280';
                         
                         return (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={5}
-                            fill={color}
-                            stroke="#fff"
-                            strokeWidth={2}
-                          />
+                          <circle cx={cx} cy={cy} r={4} fill={color} stroke="#fff" strokeWidth={1.5} />
                         );
                       }}
-                      activeDot={{ r: 7 }}
+                      activeDot={{ r: 6 }}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
 
-                {/* Data Summary */}
+                {/* Summary */}
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
                     { label: 'Good', count: historyData.filter(d => d.quality === 'good').length, color: 'bg-blue-100 text-blue-700' },
