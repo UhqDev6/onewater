@@ -74,7 +74,7 @@ export async function fetchWaterQualityHistory(
       .from('beachwatch_snapshots')
       .select('*')
       .eq('site_id', siteId)
-      .order('snapshot_date', { ascending: true })
+      .order('created_at', { ascending: true }) // Use created_at for ordering (works for old and new data)
       .limit(limit);
 
     if (error) {
@@ -97,9 +97,11 @@ export async function fetchWaterQualityHistory(
     // Transform snapshots to data points
     const dataPoints: WaterQualityHistoryDataPoint[] = snapshots.map((snapshot) => {
       const quality = mapRatingToQuality(snapshot.latest_result_rating);
+      // Use snapshot_date if available, otherwise fallback to created_at date
+      const date = snapshot.snapshot_date || snapshot.created_at.split('T')[0];
       
       return {
-        date: snapshot.snapshot_date, // Use snapshot_date (already YYYY-MM-DD format)
+        date,
         quality,
         qualityValue: snapshot.latest_result_rating || 0,
         result: snapshot.latest_result || 'Unknown',
@@ -147,10 +149,10 @@ export async function fetchAvailableSites(): Promise<{
       };
     }
 
-    // Get unique sites with count of data points
+    // Get all snapshots
     const { data: snapshots, error } = await supabase
       .from('beachwatch_snapshots')
-      .select('site_id, site_name');
+      .select('site_id, site_name, snapshot_date, created_at');
 
     if (error) {
       return {
@@ -159,17 +161,21 @@ export async function fetchAvailableSites(): Promise<{
       };
     }
 
-    // Group by site and count
-    const siteMap = new Map<string, { site_name: string; count: number }>();
+    // Group by site and count UNIQUE dates (not total rows)
+    const siteMap = new Map<string, { site_name: string; dates: Set<string> }>();
     
     snapshots?.forEach((snapshot) => {
+      // Use snapshot_date if available, otherwise fallback to created_at date
+      const date = snapshot.snapshot_date || snapshot.created_at.split('T')[0];
+      
       const existing = siteMap.get(snapshot.site_id);
       if (existing) {
-        existing.count++;
+        // Add date to set (automatically handles duplicates)
+        existing.dates.add(date);
       } else {
         siteMap.set(snapshot.site_id, {
           site_name: snapshot.site_name,
-          count: 1,
+          dates: new Set([date]),
         });
       }
     });
@@ -177,7 +183,7 @@ export async function fetchAvailableSites(): Promise<{
     const sites = Array.from(siteMap.entries()).map(([site_id, info]) => ({
       site_id,
       site_name: info.site_name,
-      data_points: info.count,
+      data_points: info.dates.size, // Count unique dates
     }));
 
     // Sort by name
