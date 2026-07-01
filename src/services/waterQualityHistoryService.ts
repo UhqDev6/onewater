@@ -156,6 +156,7 @@ export async function fetchAvailableSites(): Promise<{
     site_name: string; 
     data_points: number;
     latest_snapshot_date: string; // Latest snapshot date for sorting
+    latest_updated_at: string; // Latest update timestamp for "X ago" display
   }>;
   error: string | null;
 }> {
@@ -171,7 +172,7 @@ export async function fetchAvailableSites(): Promise<{
     // This ensures we process the latest snapshots first
     const { data: snapshots, error } = await supabase
       .from('beachwatch_snapshots')
-      .select('site_id, site_name, snapshot_date, created_at')
+      .select('site_id, site_name, snapshot_date, created_at, updated_at')
       .order('snapshot_date', { ascending: false }); // ← ORDER BY snapshot_date DESC
 
     if (error) {
@@ -181,16 +182,18 @@ export async function fetchAvailableSites(): Promise<{
       };
     }
 
-    // Group by site and count UNIQUE dates + track latest snapshot
+    // Group by site and count UNIQUE dates + track latest snapshot + latest update
     const siteMap = new Map<string, { 
       site_name: string; 
       dates: Set<string>;
       latest_snapshot: string;
+      latest_updated: string; // Track updated_at timestamp
     }>();
     
     snapshots?.forEach((snapshot) => {
       // Use snapshot_date if available, otherwise fallback to created_at date
       const date = snapshot.snapshot_date || snapshot.created_at.split('T')[0];
+      const updatedAt = snapshot.updated_at || snapshot.created_at;
       
       const existing = siteMap.get(snapshot.site_id);
       if (existing) {
@@ -203,6 +206,11 @@ export async function fetchAvailableSites(): Promise<{
         if (date > existing.latest_snapshot) {
           existing.latest_snapshot = date;
         }
+        
+        // Update latest_updated if this one is newer (compare timestamps)
+        if (updatedAt > existing.latest_updated) {
+          existing.latest_updated = updatedAt;
+        }
       } else {
         // First time seeing this site_id
         // Since data is ordered DESC, this date is the latest for this site
@@ -210,6 +218,7 @@ export async function fetchAvailableSites(): Promise<{
           site_name: snapshot.site_name,
           dates: new Set([date]),
           latest_snapshot: date, // ✅ This is guaranteed to be the latest
+          latest_updated: updatedAt, // ✅ Track updated_at timestamp
         });
       }
     });
@@ -219,12 +228,13 @@ export async function fetchAvailableSites(): Promise<{
       site_name: info.site_name,
       data_points: info.dates.size, // Count unique dates
       latest_snapshot_date: info.latest_snapshot,
+      latest_updated_at: info.latest_updated, // Return updated_at timestamp
     }));
 
-    // Sort by latest snapshot date (newest first)
+    // Sort by latest updated timestamp (newest first)
     sites.sort((a, b) => {
-      const dateCompare = b.latest_snapshot_date.localeCompare(a.latest_snapshot_date);
-      // If same date, sort alphabetically by name
+      const dateCompare = b.latest_updated_at.localeCompare(a.latest_updated_at);
+      // If same timestamp, sort alphabetically by name
       return dateCompare !== 0 ? dateCompare : a.site_name.localeCompare(b.site_name);
     });
 
