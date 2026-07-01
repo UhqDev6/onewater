@@ -80,6 +80,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     site_name: string; 
     data_points: number;
     latest_snapshot_date: string;
+    latest_updated_at: string; // Timestamp for "X ago" display
   }>>([]);
   const [selectedSite, setSelectedSite] = useState<string | null>(initialSiteId || null);
   const [historyData, setHistoryData] = useState<WaterQualityHistoryDataPoint[]>([]);
@@ -90,24 +91,26 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
   const [searchTerm, setSearchTerm] = useState('');
   const [timeFrame, setTimeFrame] = useState<'7D' | '1M' | '3M' | 'ALL'>('1M'); // Default: 1 month
 
-  // Helper: Check if date is within 24 hours
-  const isWithin24Hours = (dateString: string) => {
-    const date = new Date(dateString);
+  // Helper: Check if date is within 24 hours (use updated_at timestamp)
+  const isWithin24Hours = (timestampString: string) => {
+    const date = new Date(timestampString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = diffMs / (1000 * 60 * 60);
     return diffHours <= 24;
   };
 
-  // Helper: Format relative time
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
+  // Helper: Format relative time (use updated_at timestamp for accuracy)
+  const formatRelativeTime = (timestampString: string) => {
+    const date = new Date(timestampString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffHours < 1) return 'Just now';
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -249,7 +252,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
               <div className="space-y-1 max-h-[600px] overflow-y-auto">
                 {filteredSites.length > 0 ? (
                   filteredSites.map((site) => {
-                    const isNew = isWithin24Hours(site.latest_snapshot_date);
+                    const isNew = isWithin24Hours(site.latest_updated_at); // Use updated_at timestamp
                     
                     return (
                       <button
@@ -270,7 +273,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                           )}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {formatRelativeTime(site.latest_snapshot_date)}
+                          {formatRelativeTime(site.latest_updated_at)} {/* Use updated_at for accurate time */}
                         </div>
                       </button>
                     );
