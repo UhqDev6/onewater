@@ -88,6 +88,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [timeFrame, setTimeFrame] = useState<'7D' | '1M' | '3M' | 'ALL'>('1M'); // Default: 1 month
 
   // Helper: Check if date is within 24 hours
   const isWithin24Hours = (dateString: string) => {
@@ -141,7 +142,10 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
       setLoadingHistory(true);
       setError(null);
       
-      const { data, siteName: name, error: fetchError } = await fetchWaterQualityHistory(selectedSite!, 90);
+      // Calculate days limit based on timeframe
+      const daysLimit = timeFrame === '7D' ? 7 : timeFrame === '1M' ? 30 : timeFrame === '3M' ? 90 : 365;
+      
+      const { data, siteName: name, error: fetchError } = await fetchWaterQualityHistory(selectedSite!, daysLimit);
       
       if (fetchError) {
         setError(fetchError);
@@ -155,7 +159,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
       setLoadingHistory(false);
     }
     loadHistory();
-  }, [selectedSite]);
+  }, [selectedSite, timeFrame]); // Re-fetch when timeframe changes
 
   // Jitter mikro agar area chart tetap render mulus di segala kondisi browser
   const processedChartData = useMemo(() => {
@@ -304,13 +308,41 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
               </div>
             ) : (
               <>
+                {/* Chart Header with Timeframe Selector */}
                 <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{siteName}</h3>
-                  <p className="text-sm text-gray-600">
-                    Showing {historyData.length} data points from{' '}
-                    {new Date(historyData[0].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })} to{' '}
-                    {new Date(historyData[historyData.length - 1].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </p>
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{siteName}</h3>
+                      <p className="text-sm text-gray-600">
+                        Showing {historyData.length} data points from{' '}
+                        {new Date(historyData[0].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })} to{' '}
+                        {new Date(historyData[historyData.length - 1].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    
+                    {/* Time Frame Selector */}
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                      {[
+                        { value: '7D', label: '7D', tooltip: 'Last 7 days' },
+                        { value: '1M', label: '1M', tooltip: 'Last 30 days' },
+                        { value: '3M', label: '3M', tooltip: 'Last 90 days' },
+                        { value: 'ALL', label: 'ALL', tooltip: 'All available data' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setTimeFrame(option.value as '7D' | '1M' | '3M' | 'ALL')}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            timeFrame === option.value
+                              ? 'bg-white text-blue-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                          title={option.tooltip}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <ResponsiveContainer width="100%" height={400}>

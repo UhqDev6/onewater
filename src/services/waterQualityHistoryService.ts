@@ -51,10 +51,13 @@ function mapRatingToQuality(rating: number | null): 'good' | 'fair' | 'poor' | '
 
 /**
  * Fetch historical water quality data for a specific site
+ * 
+ * @param siteId - The site ID to fetch data for
+ * @param daysBack - Number of days to look back from today (e.g., 7 for last 7 days)
  */
 export async function fetchWaterQualityHistory(
   siteId: string,
-  limit: number = 90 // Default 90 days
+  daysBack: number = 90 // Default 90 days
 ): Promise<{
   data: WaterQualityHistoryDataPoint[];
   siteName: string | null;
@@ -69,13 +72,23 @@ export async function fetchWaterQualityHistory(
       };
     }
 
-    // Fetch snapshots for the specific site, ordered by snapshot date
+    // Calculate date range: from X days ago to today (inclusive)
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - daysBack + 1); // +1 to include today in the count
+    
+    // Format dates as YYYY-MM-DD for Supabase query
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Fetch snapshots for the specific site within date range
     const { data: snapshots, error } = await supabase
       .from('beachwatch_snapshots')
       .select('*')
       .eq('site_id', siteId)
-      .order('created_at', { ascending: true }) // Use created_at for ordering (works for old and new data)
-      .limit(limit);
+      .gte('snapshot_date', startDateStr) // >= start date
+      .lte('snapshot_date', todayStr) // <= today
+      .order('snapshot_date', { ascending: true }); // Order oldest to newest for chart (left to right)
 
     if (error) {
       console.error('Error fetching water quality history:', error);
