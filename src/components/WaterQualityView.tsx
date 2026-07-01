@@ -75,7 +75,12 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 };
 
 export default function WaterQualityView({ initialSiteId }: WaterQualityViewProps) {
-  const [sites, setSites] = useState<Array<{ site_id: string; site_name: string; data_points: number }>>([]);
+  const [sites, setSites] = useState<Array<{ 
+    site_id: string; 
+    site_name: string; 
+    data_points: number;
+    latest_snapshot_date: string;
+  }>>([]);
   const [selectedSite, setSelectedSite] = useState<string | null>(initialSiteId || null);
   const [historyData, setHistoryData] = useState<WaterQualityHistoryDataPoint[]>([]);
   const [siteName, setSiteName] = useState<string | null>(null);
@@ -83,6 +88,30 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Helper: Check if date is within 24 hours
+  const isWithin24Hours = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return diffHours <= 24;
+  };
+
+  // Helper: Format relative time
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
+  };
 
   // Fetch available sites on mount
   useEffect(() => {
@@ -161,6 +190,24 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     }
   }, [isFlatLine, historyData]);
 
+  // 🔥 LOGIKA BARU: Tentukan warna area fill secara pintar (match dengan line)
+  const adaptiveAreaFill = useMemo(() => {
+    if (!isFlatLine || historyData.length === 0) {
+      // Jika datanya naik turun (melengkung), gunakan gradien multi-color
+      return 'url(#waterQualityAreaGradient)';
+    }
+    
+    // Jika datanya FLAT, gunakan gradient single-color sesuai quality level
+    const currentQuality = historyData[0].quality;
+    switch (currentQuality) {
+      case 'good': return 'url(#areaGradientGood)';   // Blue gradient
+      case 'fair': return 'url(#areaGradientFair)';   // Yellow gradient
+      case 'poor': return 'url(#areaGradientPoor)';   // Orange gradient
+      case 'bad': return 'url(#areaGradientBad)';     // Red gradient
+      default: return 'url(#waterQualityAreaGradient)';
+    }
+  }, [isFlatLine, historyData]);
+
   const filteredSites = sites.filter((site) =>
     site?.site_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -197,19 +244,33 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
             ) : (
               <div className="space-y-1 max-h-[600px] overflow-y-auto">
                 {filteredSites.length > 0 ? (
-                  filteredSites.map((site) => (
-                    <button
-                      key={site.site_id}
-                      onClick={() => setSelectedSite(site.site_id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                        selectedSite === site.site_id
-                          ? 'bg-blue-100 text-blue-900 font-medium'
-                          : 'hover:bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      <div className="font-medium truncate">{site.site_name}</div>
-                    </button>
-                  ))
+                  filteredSites.map((site) => {
+                    const isNew = isWithin24Hours(site.latest_snapshot_date);
+                    
+                    return (
+                      <button
+                        key={site.site_id}
+                        onClick={() => setSelectedSite(site.site_id)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                          selectedSite === site.site_id
+                            ? 'bg-blue-100 text-blue-900 font-medium'
+                            : 'hover:bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-medium truncate flex-1">{site.site_name}</div>
+                          {isNew && (
+                            <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {formatRelativeTime(site.latest_snapshot_date)}
+                        </div>
+                      </button>
+                    );
+                  })
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-sm text-gray-500">No locations found</p>
@@ -258,6 +319,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <defs>
+                      {/* Multi-color gradient for fluctuating data */}
                       <linearGradient id="waterQualityLineGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" />
                         <stop offset="35%" stopColor="#eab308" />
@@ -270,6 +332,30 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                         <stop offset="35%" stopColor="#eab308" stopOpacity={0.2} />
                         <stop offset="65%" stopColor="#f97316" stopOpacity={0.1} />
                         <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
+                      </linearGradient>
+
+                      {/* Single-color gradients for flat line (Good level) */}
+                      <linearGradient id="areaGradientGood" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
+                      </linearGradient>
+
+                      {/* Single-color gradients for flat line (Fair level) */}
+                      <linearGradient id="areaGradientFair" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#eab308" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#eab308" stopOpacity={0.02} />
+                      </linearGradient>
+
+                      {/* Single-color gradients for flat line (Poor level) */}
+                      <linearGradient id="areaGradientPoor" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#f97316" stopOpacity={0.02} />
+                      </linearGradient>
+
+                      {/* Single-color gradients for flat line (Bad level) */}
+                      <linearGradient id="areaGradientBad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
 
@@ -317,8 +403,8 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                     <Area
                       type="monotone"
                       dataKey="qualityValue"
-                      stroke={adaptiveStrokeColor} // 💡 Menggunakan warna adaptif pintar hasil kalkulasi di atas
-                      fill="url(#waterQualityAreaGradient)"
+                      stroke={adaptiveStrokeColor} // 💡 Line color: solid untuk flat, gradient untuk fluktuatif
+                      fill={adaptiveAreaFill} // 💡 Area fill: match dengan line color
                       strokeWidth={2}
                       dot={(props: DotProps) => {
                         const { cx, cy, payload } = props;

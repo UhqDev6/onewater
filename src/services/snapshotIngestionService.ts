@@ -187,25 +187,25 @@ export async function getIngestionStats(): Promise<{
 
     const uniqueSites = new Set(sites?.map(s => s.site_id) || []).size;
 
-    // Get date range
+    // Get snapshot date range (when we pulled the data, not when lab tested it)
     const { data: dateData } = await supabaseAdmin
       .from('beachwatch_snapshots')
-      .select('latest_result_observation_date')
-      .order('latest_result_observation_date', { ascending: true })
+      .select('snapshot_date')
+      .order('snapshot_date', { ascending: true })
       .limit(1);
 
     const { data: dateDataLatest } = await supabaseAdmin
       .from('beachwatch_snapshots')
-      .select('latest_result_observation_date')
-      .order('latest_result_observation_date', { ascending: false })
+      .select('snapshot_date')
+      .order('snapshot_date', { ascending: false })
       .limit(1);
 
     return {
       totalSnapshots: totalCount || 0,
       uniqueSites,
       dateRange: {
-        earliest: dateData?.[0]?.latest_result_observation_date || null,
-        latest: dateDataLatest?.[0]?.latest_result_observation_date || null,
+        earliest: dateData?.[0]?.snapshot_date || null,
+        latest: dateDataLatest?.[0]?.snapshot_date || null,
       },
     };
   } catch (error) {
