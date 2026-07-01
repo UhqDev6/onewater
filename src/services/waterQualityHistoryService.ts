@@ -138,7 +138,12 @@ export async function fetchWaterQualityHistory(
  * Get list of all sites with historical data
  */
 export async function fetchAvailableSites(): Promise<{
-  data: Array<{ site_id: string; site_name: string; data_points: number }>;
+  data: Array<{ 
+    site_id: string; 
+    site_name: string; 
+    data_points: number;
+    latest_snapshot_date: string; // Latest snapshot date for sorting
+  }>;
   error: string | null;
 }> {
   try {
@@ -149,10 +154,12 @@ export async function fetchAvailableSites(): Promise<{
       };
     }
 
-    // Get all snapshots
+    // Get all snapshots ordered by snapshot_date descending (newest first)
+    // This ensures we process the latest snapshots first
     const { data: snapshots, error } = await supabase
       .from('beachwatch_snapshots')
-      .select('site_id, site_name, snapshot_date, created_at');
+      .select('site_id, site_name, snapshot_date, created_at')
+      .order('snapshot_date', { ascending: false }); // ← ORDER BY snapshot_date DESC
 
     if (error) {
       return {
@@ -161,8 +168,12 @@ export async function fetchAvailableSites(): Promise<{
       };
     }
 
-    // Group by site and count UNIQUE dates (not total rows)
-    const siteMap = new Map<string, { site_name: string; dates: Set<string> }>();
+    // Group by site and count UNIQUE dates + track latest snapshot
+    const siteMap = new Map<string, { 
+      site_name: string; 
+      dates: Set<string>;
+      latest_snapshot: string;
+    }>();
     
     snapshots?.forEach((snapshot) => {
       // Use snapshot_date if available, otherwise fallback to created_at date
@@ -172,10 +183,20 @@ export async function fetchAvailableSites(): Promise<{
       if (existing) {
         // Add date to set (automatically handles duplicates)
         existing.dates.add(date);
+        
+        // Update latest snapshot if this one is newer
+        // Since data is ordered DESC, first occurrence is already the latest
+        // But we keep this check for safety
+        if (date > existing.latest_snapshot) {
+          existing.latest_snapshot = date;
+        }
       } else {
+        // First time seeing this site_id
+        // Since data is ordered DESC, this date is the latest for this site
         siteMap.set(snapshot.site_id, {
           site_name: snapshot.site_name,
           dates: new Set([date]),
+          latest_snapshot: date, // ✅ This is guaranteed to be the latest
         });
       }
     });
@@ -184,10 +205,15 @@ export async function fetchAvailableSites(): Promise<{
       site_id,
       site_name: info.site_name,
       data_points: info.dates.size, // Count unique dates
+      latest_snapshot_date: info.latest_snapshot,
     }));
 
-    // Sort by name
-    sites.sort((a, b) => a.site_name.localeCompare(b.site_name));
+    // Sort by latest snapshot date (newest first)
+    sites.sort((a, b) => {
+      const dateCompare = b.latest_snapshot_date.localeCompare(a.latest_snapshot_date);
+      // If same date, sort alphabetically by name
+      return dateCompare !== 0 ? dateCompare : a.site_name.localeCompare(b.site_name);
+    });
 
     return {
       data: sites,
