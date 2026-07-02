@@ -9,11 +9,14 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   fetchWaterQualityHistory,
   fetchAvailableSites,
+  fetchQualityDistribution,
   type WaterQualityHistoryDataPoint,
 } from '@/services/waterQualityHistoryService';
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -21,6 +24,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  Cell,
 } from 'recharts';
 
 interface WaterQualityViewProps {
@@ -92,6 +96,14 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [timeFrame, setTimeFrame] = useState<'7D' | '1M' | '3M' | 'ALL'>('1M'); // Default: 1 month
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line'); // Default: line chart
+  const [distribution, setDistribution] = useState<{
+    good: number;
+    fair: number;
+    poor: number;
+    bad: number;
+    total: number;
+  }>({ good: 0, fair: 0, poor: 0, bad: 0, total: 0 });
 
   // Helper: Check if date is within 24 hours (use updated_at timestamp)
   // REMOVED - Badge "New" tidak informatif karena semua beach update bersamaan
@@ -160,6 +172,19 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     loadHistory();
   }, [selectedSite, timeFrame]); // Re-fetch when timeframe changes
 
+  // Fetch distribution data when timeframe changes
+  useEffect(() => {
+    async function loadDistribution() {
+      const daysLimit = timeFrame === '7D' ? 7 : timeFrame === '1M' ? 30 : timeFrame === '3M' ? 90 : 365;
+      const { data, error: fetchError } = await fetchQualityDistribution(daysLimit);
+      
+      if (!fetchError) {
+        setDistribution(data);
+      }
+    }
+    loadDistribution();
+  }, [timeFrame]); // Re-fetch when timeframe changes
+
   // Jitter mikro agar area chart tetap render mulus di segala kondisi browser
   const processedChartData = useMemo(() => {
     return historyData.map((item, index) => ({
@@ -225,71 +250,73 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Panel */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Select Location</h3>
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search beaches..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-              />
+        {/* Left Panel - Only show for Line Chart */}
+        {chartType === 'line' && (
+          <div className="lg:col-span-1 animate-fadeIn">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Select Location</h3>
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search beaches..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                  <p className="text-sm text-gray-600">Loading locations...</p>
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-[600px] overflow-y-auto">
+                  {filteredSites.length > 0 ? (
+                    filteredSites.map((site) => {
+                      return (
+                        <button
+                          key={site.site_id}
+                          onClick={() => setSelectedSite(site.site_id)}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                            selectedSite === site.site_id
+                              ? 'bg-blue-100 text-blue-900 font-medium'
+                              : 'hover:bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-medium truncate flex-1">{site.site_name}</div>
+                            {site.quality_changed && (
+                              <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                site.quality_trend === 'improved' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : site.quality_trend === 'declined'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {site.quality_trend === 'improved' ? '↑ Improved' : site.quality_trend === 'declined' ? '↓ Declined' : 'Changed'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {formatRelativeTime(site.latest_updated_at)}
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-gray-500">No locations found</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-                <p className="text-sm text-gray-600">Loading locations...</p>
-              </div>
-            ) : (
-              <div className="space-y-1 max-h-[600px] overflow-y-auto">
-                {filteredSites.length > 0 ? (
-                  filteredSites.map((site) => {
-                    return (
-                      <button
-                        key={site.site_id}
-                        onClick={() => setSelectedSite(site.site_id)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                          selectedSite === site.site_id
-                            ? 'bg-blue-100 text-blue-900 font-medium'
-                            : 'hover:bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="font-medium truncate flex-1">{site.site_name}</div>
-                          {site.quality_changed && (
-                            <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              site.quality_trend === 'improved' 
-                                ? 'bg-green-100 text-green-800' 
-                                : site.quality_trend === 'declined'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {site.quality_trend === 'improved' ? '↑ Improved' : site.quality_trend === 'declined' ? '↓ Declined' : 'Changed'}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          {formatRelativeTime(site.latest_updated_at)}
-                        </div>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-500">No locations found</p>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Right Panel (Chart) */}
-        <div className="lg:col-span-3">
+        {/* Right Panel (Chart) - Adjust column span based on chart type */}
+        <div className={`${chartType === 'line' ? 'lg:col-span-3' : 'lg:col-span-4'} transition-all duration-500 ease-in-out`}>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             {loadingHistory ? (
               <div className="flex items-center justify-center py-32">
@@ -311,44 +338,86 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
               </div>
             ) : (
               <>
-                {/* Chart Header with Timeframe Selector */}
+                {/* Chart Header with Chart Type Toggle & Timeframe Selector */}
                 <div className="mb-6">
                   <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{siteName}</h3>
-                      <p className="text-sm text-gray-600">
-                        Showing {historyData.length} data points from{' '}
-                        {new Date(historyData[0].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })} to{' '}
-                        {new Date(historyData[historyData.length - 1].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    </div>
+                    {/* Chart Title - Show beach name only for Line Chart */}
+                    {chartType === 'line' ? (
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{siteName}</h3>
+                        <p className="text-sm text-gray-600">
+                          Showing {historyData.length} data points from{' '}
+                          {new Date(historyData[0].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })} to{' '}
+                          {new Date(historyData[historyData.length - 1].date).toLocaleDateString('en-AU', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">Overall Beach Quality Distribution</h3>
+                        <p className="text-sm text-gray-600">
+                          {timeFrame === '7D' ? 'Last 7 days' : timeFrame === '1M' ? 'Last 30 days' : timeFrame === '3M' ? 'Last 90 days' : 'All available data'} • {distribution.total} beaches
+                        </p>
+                      </div>
+                    )}
                     
-                    {/* Time Frame Selector */}
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                      {[
-                        { value: '7D', label: '7D', tooltip: 'Last 7 days' },
-                        { value: '1M', label: '1M', tooltip: 'Last 30 days' },
-                        { value: '3M', label: '3M', tooltip: 'Last 90 days' },
-                        { value: 'ALL', label: 'ALL', tooltip: 'All available data' },
-                      ].map((option) => (
+                    <div className="flex items-center gap-3">
+                      {/* Chart Type Toggle */}
+                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
                         <button
-                          key={option.value}
-                          onClick={() => setTimeFrame(option.value as '7D' | '1M' | '3M' | 'ALL')}
+                          onClick={() => setChartType('line')}
                           className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            timeFrame === option.value
+                            chartType === 'line'
                               ? 'bg-white text-blue-600 shadow-sm'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
-                          title={option.tooltip}
+                          title="Line chart view"
                         >
-                          {option.label}
+                          Line
                         </button>
-                      ))}
+                        <button
+                          onClick={() => setChartType('bar')}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            chartType === 'bar'
+                              ? 'bg-white text-blue-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                          title="Bar chart view"
+                        >
+                          Bar
+                        </button>
+                      </div>
+
+                      {/* Time Frame Selector */}
+                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {[
+                          { value: '7D', label: '7D', tooltip: 'Last 7 days' },
+                          { value: '1M', label: '1M', tooltip: 'Last 30 days' },
+                          { value: '3M', label: '3M', tooltip: 'Last 90 days' },
+                          { value: 'ALL', label: 'ALL', tooltip: 'All available data' },
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => setTimeFrame(option.value as '7D' | '1M' | '3M' | 'ALL')}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              timeFrame === option.value
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                            title={option.tooltip}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <ResponsiveContainer width="100%" height={400}>
+                {/* Conditional Chart Rendering */}
+                {chartType === 'line' ? (
+                  // LINE CHART VIEW (existing implementation)
+                  <div className="animate-fadeIn">
+                    <ResponsiveContainer width="100%" height={400}>
                   <AreaChart
                     data={processedChartData}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
@@ -460,23 +529,128 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                  </div>
+                ) : (
+                  // BAR CHART VIEW (vertical bars for quality distribution)
+                  <div className="animate-fadeIn">
+                    <ResponsiveContainer width="100%" height={400}>
+                    <BarChart
+                      data={[
+                        { quality: 'Good', count: distribution.good, fill: 'url(#barGradientGood)' },
+                        { quality: 'Fair', count: distribution.fair, fill: 'url(#barGradientFair)' },
+                        { quality: 'Poor', count: distribution.poor, fill: 'url(#barGradientPoor)' },
+                        { quality: 'Bad', count: distribution.bad, fill: 'url(#barGradientBad)' },
+                      ]}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <defs>
+                        {/* Gradient untuk bar Good (Blue) */}
+                        <linearGradient id="barGradientGood" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
+                        </linearGradient>
+                        
+                        {/* Gradient untuk bar Fair (Yellow) */}
+                        <linearGradient id="barGradientFair" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#eab308" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#eab308" stopOpacity={0.7} />
+                        </linearGradient>
+                        
+                        {/* Gradient untuk bar Poor (Orange) */}
+                        <linearGradient id="barGradientPoor" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.7} />
+                        </linearGradient>
+                        
+                        {/* Gradient untuk bar Bad (Red) */}
+                        <linearGradient id="barGradientBad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.7} />
+                        </linearGradient>
+                      </defs>
+                      
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="quality" 
+                        stroke="#6b7280"
+                        style={{ fontSize: '13px', fontWeight: 500 }}
+                      />
+                      <YAxis 
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                        label={{ 
+                          value: 'Number of Beaches', 
+                          angle: -90, 
+                          position: 'insideLeft', 
+                          style: { fontSize: '12px', fill: '#6b7280', textAnchor: 'middle' } 
+                        }}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(59, 130, 246, 0.08)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            const percentage = distribution.total > 0 
+                              ? Math.round((data.count / distribution.total) * 100) 
+                              : 0;
+                            const colorMap: Record<string, string> = {
+                              'Good': 'text-blue-600',
+                              'Fair': 'text-yellow-600',
+                              'Poor': 'text-orange-600',
+                              'Bad': 'text-red-600',
+                            };
+                            return (
+                              <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+                                <p className={`font-semibold ${colorMap[data.quality]} mb-1`}>{data.quality}</p>
+                                <p className="text-sm text-gray-700 mb-0.5">
+                                  <span className="font-medium">Beaches:</span> {data.count}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Percentage:</span> {percentage}%
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar 
+                        dataKey="count" 
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={80}
+                      >
+                        {[
+                          { quality: 'Good', count: distribution.good, fill: 'url(#barGradientGood)' },
+                          { quality: 'Fair', count: distribution.fair, fill: 'url(#barGradientFair)' },
+                          { quality: 'Poor', count: distribution.poor, fill: 'url(#barGradientPoor)' },
+                          { quality: 'Bad', count: distribution.bad, fill: 'url(#barGradientBad)' },
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  </div>
+                )}
 
-                {/* Summary */}
-                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { label: 'Good', count: historyData.filter(d => d.quality === 'good').length, color: 'bg-blue-100 text-blue-700' },
-                    { label: 'Fair', count: historyData.filter(d => d.quality === 'fair').length, color: 'bg-yellow-100 text-yellow-700' },
-                    { label: 'Poor', count: historyData.filter(d => d.quality === 'poor').length, color: 'bg-orange-100 text-orange-700' },
-                    { label: 'Bad', count: historyData.filter(d => d.quality === 'bad').length, color: 'bg-red-100 text-red-700' },
-                  ].map((stat) => (
-                    <div key={stat.label} className="text-center">
-                      <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full ${stat.color} font-bold text-lg mb-2`}>
-                        {stat.count}
+                {/* Summary (only for line chart) */}
+                {chartType === 'line' && (
+                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 animate-fadeIn">
+                    {[
+                      { label: 'Good', count: historyData.filter(d => d.quality === 'good').length, color: 'bg-blue-100 text-blue-700' },
+                      { label: 'Fair', count: historyData.filter(d => d.quality === 'fair').length, color: 'bg-yellow-100 text-yellow-700' },
+                      { label: 'Poor', count: historyData.filter(d => d.quality === 'poor').length, color: 'bg-orange-100 text-orange-700' },
+                      { label: 'Bad', count: historyData.filter(d => d.quality === 'bad').length, color: 'bg-red-100 text-red-700' },
+                    ].map((stat) => (
+                      <div key={stat.label} className="text-center">
+                        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full ${stat.color} font-bold text-lg mb-2 transition-transform hover:scale-110`}>
+                          {stat.count}
+                        </div>
+                        <p className="text-sm text-gray-600">{stat.label} Days</p>
                       </div>
-                      <p className="text-sm text-gray-600">{stat.label} Days</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>

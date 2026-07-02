@@ -148,6 +148,89 @@ export async function fetchWaterQualityHistory(
 }
 
 /**
+ * Get overall water quality distribution for all beaches
+ * Returns count of beaches per quality level for the specified timeframe
+ */
+export async function fetchQualityDistribution(
+  daysBack: number = 30
+): Promise<{
+  data: {
+    good: number;
+    fair: number;
+    poor: number;
+    bad: number;
+    total: number;
+  };
+  error: string | null;
+}> {
+  try {
+    if (!supabase) {
+      return {
+        data: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: 'Supabase client not configured',
+      };
+    }
+
+    // Calculate date range
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - daysBack + 1);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Get latest snapshot per beach within timeframe
+    const { data: snapshots, error } = await supabase
+      .from('beachwatch_snapshots')
+      .select('site_id, latest_result_rating, snapshot_date')
+      .gte('snapshot_date', startDateStr)
+      .lte('snapshot_date', todayStr)
+      .order('snapshot_date', { ascending: false });
+
+    if (error) {
+      return {
+        data: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: error.message,
+      };
+    }
+
+    // Get latest snapshot per beach (most recent)
+    const latestPerBeach = new Map<string, number | null>();
+    snapshots?.forEach((snapshot) => {
+      if (!latestPerBeach.has(snapshot.site_id)) {
+        latestPerBeach.set(snapshot.site_id, snapshot.latest_result_rating);
+      }
+    });
+
+    // Count by quality level
+    let good = 0;
+    let fair = 0;
+    let poor = 0;
+    let bad = 0;
+
+    latestPerBeach.forEach((rating) => {
+      if (rating === 4) good++;
+      else if (rating === 3) fair++;
+      else if (rating === 2) poor++;
+      else if (rating === 1) bad++;
+    });
+
+    const total = good + fair + poor + bad;
+
+    return {
+      data: { good, fair, poor, bad, total },
+      error: null,
+    };
+  } catch (err) {
+    console.error('Unexpected error in fetchQualityDistribution:', err);
+    return {
+      data: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+      error: err instanceof Error ? err.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Get list of all sites with historical data
  */
 export async function fetchAvailableSites(): Promise<{
