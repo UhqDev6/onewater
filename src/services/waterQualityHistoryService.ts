@@ -148,6 +148,228 @@ export async function fetchWaterQualityHistory(
 }
 
 /**
+ * Get overall water quality distribution for all beaches
+ * Returns count of beaches per quality level for the specified timeframe
+ */
+export async function fetchQualityDistribution(
+  daysBack: number = 30
+): Promise<{
+  data: {
+    good: number;
+    fair: number;
+    poor: number;
+    bad: number;
+    total: number;
+  };
+  error: string | null;
+}> {
+  try {
+    if (!supabase) {
+      return {
+        data: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: 'Supabase client not configured',
+      };
+    }
+
+    // Calculate date range
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - daysBack + 1);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Get latest snapshot per beach within timeframe
+    const { data: snapshots, error } = await supabase
+      .from('beachwatch_snapshots')
+      .select('site_id, latest_result_rating, snapshot_date')
+      .gte('snapshot_date', startDateStr)
+      .lte('snapshot_date', todayStr)
+      .order('snapshot_date', { ascending: false });
+
+    if (error) {
+      return {
+        data: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: error.message,
+      };
+    }
+
+    // Get latest snapshot per beach (most recent)
+    const latestPerBeach = new Map<string, number | null>();
+    snapshots?.forEach((snapshot) => {
+      if (!latestPerBeach.has(snapshot.site_id)) {
+        latestPerBeach.set(snapshot.site_id, snapshot.latest_result_rating);
+      }
+    });
+
+    // Count by quality level
+    let good = 0;
+    let fair = 0;
+    let poor = 0;
+    let bad = 0;
+
+    latestPerBeach.forEach((rating) => {
+      if (rating === 4) good++;
+      else if (rating === 3) fair++;
+      else if (rating === 2) poor++;
+      else if (rating === 1) bad++;
+    });
+
+    const total = good + fair + poor + bad;
+
+    return {
+      data: { good, fair, poor, bad, total },
+      error: null,
+    };
+  } catch (err) {
+    console.error('Unexpected error in fetchQualityDistribution:', err);
+    return {
+      data: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+      error: err instanceof Error ? err.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * Get quality distribution comparison with previous period
+ * Returns current and previous period data for trend analysis
+ */
+export async function fetchQualityDistributionWithTrend(
+  daysBack: number = 30
+): Promise<{
+  current: {
+    good: number;
+    fair: number;
+    poor: number;
+    bad: number;
+    total: number;
+  };
+  previous: {
+    good: number;
+    fair: number;
+    poor: number;
+    bad: number;
+    total: number;
+  };
+  error: string | null;
+}> {
+  try {
+    if (!supabase) {
+      return {
+        current: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        previous: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: 'Supabase client not configured',
+      };
+    }
+
+    const today = new Date();
+    
+    // Current period: last X days
+    const currentStartDate = new Date(today);
+    currentStartDate.setDate(today.getDate() - daysBack + 1);
+    const currentStartDateStr = currentStartDate.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Previous period: X days before current period
+    const previousStartDate = new Date(currentStartDate);
+    previousStartDate.setDate(currentStartDate.getDate() - daysBack);
+    const previousEndDate = new Date(currentStartDate);
+    previousEndDate.setDate(currentStartDate.getDate() - 1);
+    const previousStartDateStr = previousStartDate.toISOString().split('T')[0];
+    const previousEndDateStr = previousEndDate.toISOString().split('T')[0];
+
+    // Fetch current period
+    const { data: currentSnapshots, error: currentError } = await supabase
+      .from('beachwatch_snapshots')
+      .select('site_id, latest_result_rating, snapshot_date')
+      .gte('snapshot_date', currentStartDateStr)
+      .lte('snapshot_date', todayStr)
+      .order('snapshot_date', { ascending: false });
+
+    if (currentError) {
+      return {
+        current: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        previous: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: currentError.message,
+      };
+    }
+
+    // Fetch previous period
+    const { data: previousSnapshots, error: previousError } = await supabase
+      .from('beachwatch_snapshots')
+      .select('site_id, latest_result_rating, snapshot_date')
+      .gte('snapshot_date', previousStartDateStr)
+      .lte('snapshot_date', previousEndDateStr)
+      .order('snapshot_date', { ascending: false });
+
+    if (previousError) {
+      return {
+        current: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        previous: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+        error: previousError.message,
+      };
+    }
+
+    // Process current period
+    const currentLatestPerBeach = new Map<string, number | null>();
+    currentSnapshots?.forEach((snapshot) => {
+      if (!currentLatestPerBeach.has(snapshot.site_id)) {
+        currentLatestPerBeach.set(snapshot.site_id, snapshot.latest_result_rating);
+      }
+    });
+
+    let currentGood = 0, currentFair = 0, currentPoor = 0, currentBad = 0;
+    currentLatestPerBeach.forEach((rating) => {
+      if (rating === 4) currentGood++;
+      else if (rating === 3) currentFair++;
+      else if (rating === 2) currentPoor++;
+      else if (rating === 1) currentBad++;
+    });
+
+    // Process previous period
+    const previousLatestPerBeach = new Map<string, number | null>();
+    previousSnapshots?.forEach((snapshot) => {
+      if (!previousLatestPerBeach.has(snapshot.site_id)) {
+        previousLatestPerBeach.set(snapshot.site_id, snapshot.latest_result_rating);
+      }
+    });
+
+    let previousGood = 0, previousFair = 0, previousPoor = 0, previousBad = 0;
+    previousLatestPerBeach.forEach((rating) => {
+      if (rating === 4) previousGood++;
+      else if (rating === 3) previousFair++;
+      else if (rating === 2) previousPoor++;
+      else if (rating === 1) previousBad++;
+    });
+
+    return {
+      current: {
+        good: currentGood,
+        fair: currentFair,
+        poor: currentPoor,
+        bad: currentBad,
+        total: currentGood + currentFair + currentPoor + currentBad,
+      },
+      previous: {
+        good: previousGood,
+        fair: previousFair,
+        poor: previousPoor,
+        bad: previousBad,
+        total: previousGood + previousFair + previousPoor + previousBad,
+      },
+      error: null,
+    };
+  } catch (err) {
+    console.error('Unexpected error in fetchQualityDistributionWithTrend:', err);
+    return {
+      current: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+      previous: { good: 0, fair: 0, poor: 0, bad: 0, total: 0 },
+      error: err instanceof Error ? err.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Get list of all sites with historical data
  */
 export async function fetchAvailableSites(): Promise<{
