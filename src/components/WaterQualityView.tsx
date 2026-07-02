@@ -80,7 +80,9 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     site_name: string; 
     data_points: number;
     latest_snapshot_date: string;
-    latest_updated_at: string; // Timestamp for "X ago" display
+    latest_updated_at: string;
+    quality_changed: boolean;
+    quality_trend: 'improved' | 'declined' | 'stable';
   }>>([]);
   const [selectedSite, setSelectedSite] = useState<string | null>(initialSiteId || null);
   const [historyData, setHistoryData] = useState<WaterQualityHistoryDataPoint[]>([]);
@@ -92,13 +94,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
   const [timeFrame, setTimeFrame] = useState<'7D' | '1M' | '3M' | 'ALL'>('1M'); // Default: 1 month
 
   // Helper: Check if date is within 24 hours (use updated_at timestamp)
-  const isWithin24Hours = (timestampString: string) => {
-    const date = new Date(timestampString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-    return diffHours <= 24;
-  };
+  // REMOVED - Badge "New" tidak informatif karena semua beach update bersamaan
 
   // Helper: Format relative time (use updated_at timestamp for accuracy)
   const formatRelativeTime = (timestampString: string) => {
@@ -252,8 +248,6 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
               <div className="space-y-1 max-h-[600px] overflow-y-auto">
                 {filteredSites.length > 0 ? (
                   filteredSites.map((site) => {
-                    const isNew = isWithin24Hours(site.latest_updated_at); // Use updated_at timestamp
-                    
                     return (
                       <button
                         key={site.site_id}
@@ -266,14 +260,20 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-medium truncate flex-1">{site.site_name}</div>
-                          {isNew && (
-                            <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              New
+                          {site.quality_changed && (
+                            <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              site.quality_trend === 'improved' 
+                                ? 'bg-green-100 text-green-800' 
+                                : site.quality_trend === 'declined'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {site.quality_trend === 'improved' ? '↑ Improved' : site.quality_trend === 'declined' ? '↓ Declined' : 'Changed'}
                             </span>
                           )}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {formatRelativeTime(site.latest_updated_at)} {/* Use updated_at for accurate time */}
+                          {formatRelativeTime(site.latest_updated_at)}
                         </div>
                       </button>
                     );
