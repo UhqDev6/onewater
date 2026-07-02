@@ -157,6 +157,8 @@ export async function fetchAvailableSites(): Promise<{
     data_points: number;
     latest_snapshot_date: string; // Latest snapshot date for sorting
     latest_updated_at: string; // Latest update timestamp for "X ago" display
+    quality_changed: boolean; // Whether quality rating changed from previous snapshot
+    quality_trend: 'improved' | 'declined' | 'stable'; // Trend direction
   }>;
   error: string | null;
 }> {
@@ -169,10 +171,9 @@ export async function fetchAvailableSites(): Promise<{
     }
 
     // Get all snapshots ordered by snapshot_date descending (newest first)
-    // This ensures we process the latest snapshots first
     const { data: snapshots, error } = await supabase
       .from('beachwatch_snapshots')
-      .select('site_id, site_name, snapshot_date, created_at, updated_at')
+      .select('site_id, site_name, snapshot_date, created_at, updated_at, latest_result_rating')
       .order('snapshot_date', { ascending: false }); // ← ORDER BY snapshot_date DESC
 
     if (error) {
@@ -182,59 +183,73 @@ export async function fetchAvailableSites(): Promise<{
       };
     }
 
-    // Group by site and count UNIQUE dates + track latest snapshot + latest update
+    // Group by site and track quality changes
     const siteMap = new Map<string, { 
       site_name: string; 
       dates: Set<string>;
       latest_snapshot: string;
-      latest_updated: string; // Track updated_at timestamp
+      latest_updated: string;
+      snapshots: Array<{ date: string; rating: number | null }>;
     }>();
     
     snapshots?.forEach((snapshot) => {
-      // Use snapshot_date if available, otherwise fallback to created_at date
       const date = snapshot.snapshot_date || snapshot.created_at.split('T')[0];
       const updatedAt = snapshot.updated_at || snapshot.created_at;
       
       const existing = siteMap.get(snapshot.site_id);
       if (existing) {
-        // Add date to set (automatically handles duplicates)
         existing.dates.add(date);
+        existing.snapshots.push({ date, rating: snapshot.latest_result_rating });
         
-        // Update latest snapshot if this one is newer
-        // Since data is ordered DESC, first occurrence is already the latest
-        // But we keep this check for safety
         if (date > existing.latest_snapshot) {
           existing.latest_snapshot = date;
         }
         
-        // Update latest_updated if this one is newer (compare timestamps)
         if (updatedAt > existing.latest_updated) {
           existing.latest_updated = updatedAt;
         }
       } else {
-        // First time seeing this site_id
-        // Since data is ordered DESC, this date is the latest for this site
         siteMap.set(snapshot.site_id, {
           site_name: snapshot.site_name,
           dates: new Set([date]),
-          latest_snapshot: date, // ✅ This is guaranteed to be the latest
-          latest_updated: updatedAt, // ✅ Track updated_at timestamp
+          latest_snapshot: date,
+          latest_updated: updatedAt,
+          snapshots: [{ date, rating: snapshot.latest_result_rating }],
         });
       }
     });
 
-    const sites = Array.from(siteMap.entries()).map(([site_id, info]) => ({
-      site_id,
-      site_name: info.site_name,
-      data_points: info.dates.size, // Count unique dates
-      latest_snapshot_date: info.latest_snapshot,
-      latest_updated_at: info.latest_updated, // Return updated_at timestamp
-    }));
+    const sites = Array.from(siteMap.entries()).map(([site_id, info]) => {
+      // Detect quality change by comparing latest 2 snapshots
+      let quality_changed = false;
+      let quality_trend: 'improved' | 'declined' | 'stable' = 'stable';
+      
+      if (info.snapshots.length >= 2) {
+        // Sort by date descending to get latest 2
+        const sorted = info.snapshots.sort((a, b) => b.date.localeCompare(a.date));
+        const latest = sorted[0].rating;
+        const previous = sorted[1].rating;
+        
+        if (latest !== null && previous !== null && latest !== previous) {
+          quality_changed = true;
+          quality_trend = latest > previous ? 'improved' : 'declined';
+        }
+      }
+      
+      return {
+        site_id,
+        site_name: info.site_name,
+        data_points: info.dates.size,
+        latest_snapshot_date: info.latest_snapshot,
+        latest_updated_at: info.latest_updated,
+        quality_changed,
+        quality_trend,
+      };
+    });
 
     // Sort by latest updated timestamp (newest first)
     sites.sort((a, b) => {
       const dateCompare = b.latest_updated_at.localeCompare(a.latest_updated_at);
-      // If same timestamp, sort alphabetically by name
       return dateCompare !== 0 ? dateCompare : a.site_name.localeCompare(b.site_name);
     });
 
