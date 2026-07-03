@@ -29,7 +29,7 @@ import {
 } from 'recharts';
 
 // Cache utilities
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes (aligned with cron job)
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes (more responsive than 10 min)
 const CACHE_KEYS = {
   SITES: 'wq_sites',
   DISTRIBUTION: 'wq_distribution',
@@ -72,6 +72,26 @@ function setCachedData<T>(key: string, data: T): void {
     localStorage.setItem(key, JSON.stringify(cacheData));
   } catch (error) {
     console.error('Error writing cache:', error);
+  }
+}
+
+function clearAllCache(): void {
+  try {
+    // Clear all Water Quality related cache
+    Object.values(CACHE_KEYS).forEach((key) => {
+      // Remove exact matches
+      localStorage.removeItem(key);
+      
+      // Remove all keys that start with the cache key (for parameterized caches)
+      Object.keys(localStorage).forEach((storageKey) => {
+        if (storageKey.startsWith(key)) {
+          localStorage.removeItem(storageKey);
+        }
+      });
+    });
+    console.log('Cache cleared successfully');
+  } catch (error) {
+    console.error('Error clearing cache:', error);
   }
 }
 
@@ -160,6 +180,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     bad: number;
     total: number;
   }>({ good: 0, fair: 0, poor: 0, bad: 0, total: 0 });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Helper: Check if date is within 24 hours (use updated_at timestamp)
   // REMOVED - Badge "New" tidak informatif karena semua beach update bersamaan
@@ -186,6 +207,52 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     const diff = current - previous;
     const percentChange = previous > 0 ? Math.round((diff / previous) * 100) : 0;
     return { diff, percentChange, isPositive: diff > 0, isNeutral: diff === 0 };
+  };
+
+  // Handler: Refresh all data (clear cache and re-fetch)
+  const handleRefreshData = async () => {
+    setIsRefreshing(true);
+    
+    // Clear all cache
+    clearAllCache();
+    
+    // Re-fetch all data
+    try {
+      // Refetch sites
+      const { data: sitesData, error: sitesError } = await fetchAvailableSites();
+      if (!sitesError) {
+        setSites(sitesData);
+        setCachedData(CACHE_KEYS.SITES, sitesData);
+      }
+
+      // Refetch history if a site is selected
+      if (selectedSite) {
+        const daysLimit = timeFrame === '7D' ? 7 : timeFrame === '1M' ? 30 : timeFrame === '3M' ? 90 : 365;
+        const { data: historyDataResult, siteName: name, error: historyError } = await fetchWaterQualityHistory(selectedSite, daysLimit);
+        
+        if (!historyError) {
+          setHistoryData(historyDataResult);
+          setSiteName(name);
+          const cacheKey = `${CACHE_KEYS.HISTORY}_${selectedSite}_${timeFrame}`;
+          setCachedData(cacheKey, { data: historyDataResult, siteName: name });
+        }
+      }
+
+      // Refetch distribution
+      const daysLimit = timeFrame === '7D' ? 7 : timeFrame === '1M' ? 30 : timeFrame === '3M' ? 90 : 365;
+      const { current, previous, error: distError } = await fetchQualityDistributionWithTrend(daysLimit);
+      
+      if (!distError) {
+        setDistribution(current);
+        setPreviousDistribution(previous);
+        const cacheKey = `${CACHE_KEYS.DISTRIBUTION}_${timeFrame}_trend`;
+        setCachedData(cacheKey, { current, previous });
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Fetch available sites on mount
@@ -355,9 +422,29 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Water Quality History</h2>
-        <p className="text-gray-600">View historical water quality trends over time</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Water Quality History</h2>
+          <p className="text-gray-600">View historical water quality trends over time</p>
+        </div>
+        
+        {/* Refresh Button */}
+        <button
+          onClick={handleRefreshData}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh data (clear cache)"
+        >
+          <svg 
+            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
