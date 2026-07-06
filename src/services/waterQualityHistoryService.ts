@@ -475,6 +475,36 @@ export async function fetchAvailableSites(): Promise<{
       return dateCompare !== 0 ? dateCompare : a.site_name.localeCompare(b.site_name);
     });
 
+    // PRIORITY SORTING: Changed beaches (Declined/Improved) should appear at top
+    // Priority 1: Declined (safety-critical - show first)
+    // Priority 2: Improved (positive change - show second)
+    // Priority 3: Stable (no change - show last)
+    sites.sort((a, b) => {
+      // Assign priority scores (lower = higher priority)
+      const getPriority = (site: typeof a) => {
+        if (site.quality_changed) {
+          if (site.quality_trend === 'declined') return 1; // HIGHEST priority (safety)
+          if (site.quality_trend === 'improved') return 2; // HIGH priority
+        }
+        return 3; // NORMAL priority (stable)
+      };
+
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
+
+      // Sort by priority first
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      // Within same priority, sort by latest update (newest first)
+      const dateCompare = b.latest_updated_at.localeCompare(a.latest_updated_at);
+      if (dateCompare !== 0) return dateCompare;
+
+      // If timestamps are same, sort alphabetically
+      return a.site_name.localeCompare(b.site_name);
+    });
+
     return {
       data: sites,
       error: null,

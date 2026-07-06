@@ -418,6 +418,12 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
     site?.site_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Group sites by change status for visual separation
+  const changedSites = filteredSites.filter(site => site.quality_changed);
+  const stableSites = filteredSites.filter(site => !site.quality_changed);
+  const hasChangedSites = changedSites.length > 0;
+  const hasStableSites = stableSites.length > 0;
+
   const qualityLabels = useMemo(() => ['', 'Bad', 'Poor', 'Fair', 'Good'], []);
 
   return (
@@ -469,39 +475,88 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                   <p className="text-sm text-gray-600">Loading locations...</p>
                 </div>
               ) : (
-                <div className="space-y-1 max-h-[600px] overflow-y-auto">
+                <div className="space-y-2 max-h-[600px] overflow-y-auto">
                   {filteredSites.length > 0 ? (
-                    filteredSites.map((site) => {
-                      return (
-                        <button
-                          key={site.site_id}
-                          onClick={() => setSelectedSite(site.site_id)}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                            selectedSite === site.site_id
-                              ? 'bg-blue-100 text-blue-900 font-medium'
-                              : 'hover:bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="font-medium truncate flex-1">{site.site_name}</div>
-                            {site.quality_changed && (
-                              <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                site.quality_trend === 'improved' 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : site.quality_trend === 'declined'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {site.quality_trend === 'improved' ? '↑ Improved' : site.quality_trend === 'declined' ? '↓ Declined' : 'Changed'}
+                    <>
+                      {/* Section: Changed Beaches (Priority) */}
+                      {hasChangedSites && (
+                        <div>
+                          <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+                            <div className="flex-1 h-px bg-gradient-to-r from-red-200 via-yellow-200 to-green-200"></div>
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              Recent Changes
+                            </span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-green-200 via-yellow-200 to-red-200"></div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            {changedSites.map((site) => (
+                              <button
+                                key={site.site_id}
+                                onClick={() => setSelectedSite(site.site_id)}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                                  selectedSite === site.site_id
+                                    ? 'bg-blue-100 text-blue-900 font-medium'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="font-medium truncate flex-1">{site.site_name}</div>
+                                  <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    site.quality_trend === 'improved' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : site.quality_trend === 'declined'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {site.quality_trend === 'improved' ? '↑ Improved' : site.quality_trend === 'declined' ? '↓ Declined' : 'Changed'}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {formatRelativeTime(site.latest_updated_at)}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section: Stable Beaches */}
+                      {hasStableSites && (
+                        <div className={hasChangedSites ? 'mt-4' : ''}>
+                          {hasChangedSites && (
+                            <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+                              <div className="flex-1 h-px bg-gray-200"></div>
+                              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                                Stable
                               </span>
-                            )}
+                              <div className="flex-1 h-px bg-gray-200"></div>
+                            </div>
+                          )}
+                          
+                          <div className="space-y-1">
+                            {stableSites.map((site) => (
+                              <button
+                                key={site.site_id}
+                                onClick={() => setSelectedSite(site.site_id)}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                                  selectedSite === site.site_id
+                                    ? 'bg-blue-100 text-blue-900 font-medium'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="font-medium truncate flex-1">{site.site_name}</div>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {formatRelativeTime(site.latest_updated_at)}
+                                </div>
+                              </button>
+                            ))}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
-                            {formatRelativeTime(site.latest_updated_at)}
-                          </div>
-                        </button>
-                      );
-                    })
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-sm text-gray-500">No locations found</p>
