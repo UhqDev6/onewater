@@ -676,7 +676,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                           }`}
                           title="Line chart view"
                         >
-                          Line
+                          Individual
                         </button>
                         <button
                           onClick={() => setChartType('bar')}
@@ -687,7 +687,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                           }`}
                           title="Bar chart view"
                         >
-                          Bar
+                          Overall
                         </button>
                       </div>
 
