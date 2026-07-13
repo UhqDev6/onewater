@@ -148,6 +148,254 @@ export async function fetchWaterQualityHistory(
 }
 
 /**
+ * Get water quality distribution per date for all beaches
+ * Returns percentage distribution by date across all locations
+ * 
+ * PERFORMANCE OPTIMIZATION:
+ * - For timeframes >90 days: Uses database function for aggregation (much faster)
+ * - For timeframes ≤90 days: Uses client-side pagination
+ */
+export async function fetchAllBeachQualityByDate(
+  daysBack: number = 90
+): Promise<{
+  data: Array<{
+    date: string;
+    good: number;
+    fair: number; 
+    poor: number;
+    bad: number;
+    total: number;
+    goodPercentage: number;
+    fairPercentage: number;
+    poorPercentage: number;
+    badPercentage: number;
+  }>;
+  error: string | null;
+}> {
+  try {
+    if (!supabase) {
+      return {
+        data: [],
+        error: 'Supabase client not configured',
+      };
+    }
+
+    // Calculate date range
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - daysBack + 1);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    console.log('fetchAllBeachQualityByDate - Date range:', { startDateStr, todayStr, daysBack });
+
+    // Use database function for large timeframes (>90 days)
+    // This is much faster as aggregation happens in the database
+    if (daysBack > 90) {
+      console.log('fetchAllBeachQualityByDate - Using database function for aggregation (efficient for large datasets)');
+      
+      const { data: functionData, error: functionError } = await supabase
+        .rpc('get_daily_quality_distribution', {
+          start_date: startDateStr,
+          end_date: todayStr,
+        });
+
+      if (functionError) {
+        console.error('fetchAllBeachQualityByDate - Database function error:', functionError);
+        return {
+          data: [],
+          error: functionError.message ?? 'Database function error',
+        };
+      }
+
+      if (!functionData || functionData.length === 0) {
+        return {
+          data: [],
+          error: 'No data available',
+        };
+      }
+
+      // Define type for database function result
+      type DbFunctionResult = {
+        date: string;
+        good_count: number;
+        fair_count: number;
+        poor_count: number;
+        bad_count: number;
+        total_count: number;
+      };
+
+      // Transform function result to expected format
+      const result = (functionData as DbFunctionResult[]).map((row) => {
+        const total = Number(row.total_count);
+        const good = Number(row.good_count);
+        const fair = Number(row.fair_count);
+        const poor = Number(row.poor_count);
+        const bad = Number(row.bad_count);
+
+        return {
+          date: row.date,
+          good,
+          fair,
+          poor,
+          bad,
+          total,
+          goodPercentage: total > 0 ? Math.round((good / total) * 100) : 0,
+          fairPercentage: total > 0 ? Math.round((fair / total) * 100) : 0,
+          poorPercentage: total > 0 ? Math.round((poor / total) * 100) : 0,
+          badPercentage: total > 0 ? Math.round((bad / total) * 100) : 0,
+        };
+      });
+
+      console.log('fetchAllBeachQualityByDate - Database function returned:', result.length, 'dates');
+      return {
+        data: result,
+        error: null,
+      };
+    }
+
+    // For smaller timeframes (≤90 days), use client-side pagination
+    // This is fine for <25,000 records
+    console.log('fetchAllBeachQualityByDate - Using client-side pagination (suitable for small datasets)');
+
+    // Fetch ALL snapshots within date range (not just latest per site)
+    // Database has ~4900 records (20 dates × 245 sites)
+    // Supabase has 1000 record limit per query, so we need pagination
+    
+    type SnapshotRecord = {
+      site_id: string;
+      snapshot_date: string;
+      latest_result_rating: number | null;
+      created_at: string;
+    };
+    
+    let allSnapshots: SnapshotRecord[] = [];
+    let hasMore = true;
+    let page = 0;
+    const pageSize = 1000;
+    
+    while (hasMore && page < 25) { // Max 25 pages = 25,000 records (enough for 3M timeframe)
+      const start = page * pageSize;
+      const end = start + pageSize - 1;
+      
+      const { data: pageData, error: pageError, count } = await supabase
+        .from('beachwatch_snapshots')
+        .select('site_id, snapshot_date, latest_result_rating, created_at', { count: 'exact' })
+        .gte('snapshot_date', startDateStr)
+        .lte('snapshot_date', todayStr)
+        .order('snapshot_date', { ascending: true })
+        .range(start, end);
+      
+      if (pageError) {
+        console.error('fetchAllBeachQualityByDate - Supabase error:', pageError);
+        return {
+          data: [],
+          error: pageError.message,
+        };
+      }
+      
+      if (pageData && pageData.length > 0) {
+        allSnapshots = allSnapshots.concat(pageData);
+        
+        // Check if there are more records
+        if (count && allSnapshots.length < count) {
+          hasMore = pageData.length === pageSize; // Continue if we got a full page
+        } else {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+      
+      page++;
+    }
+    
+    const snapshots = allSnapshots;
+    
+    // Warning if data might be truncated
+    if (page >= 25) {
+      console.warn(
+        `fetchAllBeachQualityByDate - Reached pagination limit (${page} pages, ${snapshots.length} records). ` +
+        `Data may be incomplete. Consider using a shorter timeframe or implementing database-side aggregation.`
+      );
+    }
+
+    if (!snapshots || snapshots.length === 0) {
+      return {
+        data: [],
+        error: 'No data available',
+      };
+    }
+
+    // Create complete date range (including dates with no data)
+    const completeDateRange: string[] = [];
+    const currentDate = new Date(startDate);
+    while (currentDate <= today) {
+      completeDateRange.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Group by date and calculate distribution
+    // Use created_at date if snapshot_date is not available (same logic as line chart)
+    const dateGroups: { [date: string]: { good: number, fair: number, poor: number, bad: number, total: number } } = {};
+    
+    // Initialize all dates with zero counts
+    completeDateRange.forEach(date => {
+      dateGroups[date] = { good: 0, fair: 0, poor: 0, bad: 0, total: 0 };
+    });
+    
+    snapshots.forEach((snapshot) => {
+      // Use snapshot_date if available, otherwise fallback to created_at date (same as line chart)
+      const dateKey = snapshot.snapshot_date || snapshot.created_at.split('T')[0];
+      const rating = snapshot.latest_result_rating;
+      
+      // Only process if date is in our range (should be, but extra safety)
+      if (dateGroups[dateKey]) {
+        // Map rating to quality category (same as mapRatingToQuality function)
+        if (rating === 4) dateGroups[dateKey].good++;
+        else if (rating === 3) dateGroups[dateKey].fair++;
+        else if (rating === 2) dateGroups[dateKey].poor++;
+        else if (rating === 1) dateGroups[dateKey].bad++;
+        
+        dateGroups[dateKey].total++;
+      }
+    });
+
+    // Convert to final format with percentages (including zero days)
+    const result = completeDateRange.map((date) => {
+      const counts = dateGroups[date];
+      return {
+        date,
+        good: counts.good,
+        fair: counts.fair,
+        poor: counts.poor,
+        bad: counts.bad,
+        total: counts.total,
+        goodPercentage: counts.total > 0 ? Math.round((counts.good / counts.total) * 100) : 0,
+        fairPercentage: counts.total > 0 ? Math.round((counts.fair / counts.total) * 100) : 0,
+        poorPercentage: counts.total > 0 ? Math.round((counts.poor / counts.total) * 100) : 0,
+        badPercentage: counts.total > 0 ? Math.round((counts.bad / counts.total) * 100) : 0,
+      };
+    });
+
+    // Filter out days with no data for cleaner visualization
+    const resultWithData = result.filter(item => item.total > 0);
+
+    return {
+      data: resultWithData,
+      error: null,
+    };
+  } catch (err) {
+    console.error('Unexpected error in fetchAllBeachQualityByDate:', err);
+    return {
+      data: [],
+      error: err instanceof Error ? err.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Get overall water quality distribution for all beaches
  * Returns count of beaches per quality level for the specified timeframe
  */
