@@ -782,12 +782,14 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis
                           dataKey="date"
+                          angle={-45}
+                          textAnchor="end"
+                          height={90}
+                          tick={{ fontSize: 10, fill: '#6b7280' }}
                           tickFormatter={(date) => {
                             const d = new Date(date);
                             return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
                           }}
-                          stroke="#6b7280"
-                          style={{ fontSize: '12px' }}
                         />
                         <YAxis
                           domain={[0, 5]}
@@ -850,7 +852,56 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                         margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                         barSize={30}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <defs>
+                          {/* Seamless smooth gradient dari Bad (bottom) ke Good (top) */}
+                          <linearGradient id="seamlessQualityGradient" x1="0" y1="1" x2="0" y2="0">
+                            {/* Bad - Bottom */}
+                            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.92} />
+                            <stop offset="12.5%" stopColor="#f87171" stopOpacity={0.92} />
+                            
+                            {/* Transition Bad → Poor */}
+                            <stop offset="25%" stopColor="#fb6b45" stopOpacity={0.92} />
+                            
+                            {/* Poor */}
+                            <stop offset="37.5%" stopColor="#fb923c" stopOpacity={0.92} />
+                            <stop offset="50%" stopColor="#f97316" stopOpacity={0.92} />
+                            
+                            {/* Transition Poor → Fair */}
+                            <stop offset="62.5%" stopColor="#f59e0b" stopOpacity={0.92} />
+                            
+                            {/* Fair */}
+                            <stop offset="75%" stopColor="#fbbf24" stopOpacity={0.92} />
+                            
+                            {/* Transition Fair → Good */}
+                            <stop offset="87.5%" stopColor="#60a5fa" stopOpacity={0.92} />
+                            
+                            {/* Good - Top */}
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.92} />
+                          </linearGradient>
+
+                          {/* Individual gradients untuk legend colors */}
+                          <linearGradient id="gradientGood" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.92} />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.88} />
+                          </linearGradient>
+                          
+                          <linearGradient id="gradientFair" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.92} />
+                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.88} />
+                          </linearGradient>
+                          
+                          <linearGradient id="gradientPoor" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#fb923c" stopOpacity={0.92} />
+                            <stop offset="100%" stopColor="#f97316" stopOpacity={0.88} />
+                          </linearGradient>
+                          
+                          <linearGradient id="gradientBad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f87171" stopOpacity={0.92} />
+                            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.88} />
+                          </linearGradient>
+                        </defs>
+
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                         {/* X-axis: Tanggal dalam format dd/mm/yy */}
                         <XAxis 
                           dataKey="date" 
@@ -896,7 +947,7 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                                 { color: '#ef4444', label: 'Bad' },
                               ].map((item) => (
                                 <div key={item.label} className="flex items-center gap-2">
-                                  <div className="w-3 h-3" style={{ backgroundColor: item.color }} />
+                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
                                   <span className="text-sm text-gray-600">{item.label}</span>
                                 </div>
                               ))}
@@ -904,30 +955,36 @@ export default function WaterQualityView({ initialSiteId }: WaterQualityViewProp
                           )}
                         />
                         
-                        {/* Stacked bars per quality category - urutan menentukan legend */}
+                        {/* Stacked bars dengan seamless smooth gradient - tanpa border */}
                         <Bar
                           dataKey="bad"
                           stackId="quality"
-                          fill="#ef4444"
-                          name="Bad"
+                          fill="url(#gradientBad)"
+                          radius={[0, 0, 4, 4]}
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                         <Bar
                           dataKey="poor"
                           stackId="quality"
-                          fill="#f97316"
-                          name="Poor"
+                          fill="url(#gradientPoor)"
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                         <Bar
                           dataKey="fair"
                           stackId="quality"
-                          fill="#eab308"
-                          name="Fair"
+                          fill="url(#gradientFair)"
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                         <Bar
                           dataKey="good"
                           stackId="quality"
-                          fill="#3b82f6"
-                          name="Good"
+                          fill="url(#gradientGood)"
+                          radius={[4, 4, 0, 0]}
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                       </BarChart>
                     </ResponsiveContainer>
