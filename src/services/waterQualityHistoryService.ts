@@ -362,6 +362,15 @@ export async function fetchAllBeachQualityByDate(
       }
     });
 
+    // Helper function to handle small percentages in bar chart
+    const calculatePercentage = (count: number, total: number): number => {
+      if (total === 0) return 0;
+      const percentage = (count / total) * 100;
+      // If there's data but percentage rounds to 0, use minimum 0.5% for visibility
+      if (count > 0 && percentage < 0.5) return 0.5;
+      return Math.round(percentage * 10) / 10; // Round to 1 decimal
+    };
+
     // Convert to final format with percentages (including zero days)
     const result = completeDateRange.map((date) => {
       const counts = dateGroups[date];
@@ -372,10 +381,10 @@ export async function fetchAllBeachQualityByDate(
         poor: counts.poor,
         bad: counts.bad,
         total: counts.total,
-        goodPercentage: counts.total > 0 ? Math.round((counts.good / counts.total) * 100) : 0,
-        fairPercentage: counts.total > 0 ? Math.round((counts.fair / counts.total) * 100) : 0,
-        poorPercentage: counts.total > 0 ? Math.round((counts.poor / counts.total) * 100) : 0,
-        badPercentage: counts.total > 0 ? Math.round((counts.bad / counts.total) * 100) : 0,
+        goodPercentage: calculatePercentage(counts.good, counts.total),
+        fairPercentage: calculatePercentage(counts.fair, counts.total),
+        poorPercentage: calculatePercentage(counts.poor, counts.total),
+        badPercentage: calculatePercentage(counts.bad, counts.total),
       };
     });
 
