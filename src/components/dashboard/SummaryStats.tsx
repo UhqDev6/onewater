@@ -83,6 +83,12 @@ export default function SummaryStats({ data }: SummaryStatsProps) {
   const fairPercentage = stats.totalLocations > 0 ? (fairCount / stats.totalLocations) * 100 : 0;
   const poorPercentage = stats.totalLocations > 0 ? (poorCount / stats.totalLocations) * 100 : 0;
 
+  // Format percentage to show 1 decimal place for better accuracy
+  const formatPercentage = (percentage: number): string => {
+    if (percentage === 0) return '0';
+    return percentage.toFixed(1);
+  };
+
   const statCards = [
     {
       id: 'LOC',
@@ -101,7 +107,7 @@ export default function SummaryStats({ data }: SummaryStatsProps) {
       id: 'GQI',
       type: 'good' as const,
       label: 'Good Quality Index',
-      value: `${goodPercentage.toFixed(0)}%`,
+      value: `${formatPercentage(goodPercentage)}%`,
       subValue: `${goodCount} locations`,
       color: '#3b82f6', // blue
       bgGradient: 'from-blue-50 to-blue-100',
@@ -114,7 +120,7 @@ export default function SummaryStats({ data }: SummaryStatsProps) {
       id: 'FQI',
       type: 'fair' as const,
       label: 'Fair Quality Index',
-      value: `${fairPercentage.toFixed(0)}%`,
+      value: `${formatPercentage(fairPercentage)}%`,
       subValue: `${fairCount} locations`,
       color: '#eab308', // yellow
       bgGradient: 'from-yellow-50 to-amber-100',
@@ -127,7 +133,7 @@ export default function SummaryStats({ data }: SummaryStatsProps) {
       id: 'PQI',
       type: 'poor' as const,
       label: 'Poor or Worse',
-      value: `${poorPercentage.toFixed(0)}%`,
+      value: `${formatPercentage(poorPercentage)}%`,
       subValue: `${poorCount} locations`,
       color: '#ef4444', // red
       bgGradient: 'from-red-50 to-red-100',
